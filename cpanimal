@@ -407,7 +407,7 @@ sub parse_overrides_io
 	}
 
 	my %over;
-	my @tokens = split(/\s+/, join(' ', @lines));
+	my @tokens = grep { length $_ } split(/\s+/, join(' ', @lines));
 	while (@tokens) {
 		my $pkg    = shift @tokens or die "Unexpected end of input\n";
 		next if $pkg eq ';'; # allow multiple semi-colons
