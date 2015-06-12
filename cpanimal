@@ -281,6 +281,8 @@ sub specfile
 
 	my $PREFIX = $OPTIONS{prefix};
 	$PREFIX = "$PREFIX-" unless $PREFIX =~ m/-$/;
+	$PREFIX = '' if $rel->{distribution} eq 'mod_perl';
+
 	my $relname = $rel->{name};
 	my $version = $relname; $version =~ s/.*-//;
 
@@ -550,14 +552,14 @@ sub build_all
 sub build
 {
 	my ($name) = @_;
-	die "refusing to build '$name'!\n" if $name =~ m/^(mod_)?perl$/;
+	die "refusing to build '$name'!\n" if $name =~ m/^perl$/;
 	stage "Building $name";
 
 	$SEEN{$name} = 1;
 	my $rel = lookup($name)
 		or die "Module '$name' not found on CPAN...\n";
 	my $dist = $rel->{distribution};
-	die "refusing to build '$dist'!\n" if $dist =~ m/^(mod_)?perl$/;
+	die "refusing to build '$dist'!\n" if $dist =~ m/^perl$/;
 	my ($requires ,$build_requires) = deps($rel);
 
 	for my $dep (@$build_requires) {
