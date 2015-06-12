@@ -123,10 +123,11 @@ sub usage
 }
 
 my %OPTIONS = (
-	root     => cwd,
-	template => undef,
-	tests    => 1,
-	prefix   => 'perl',
+	root      => cwd,
+	template  => undef,
+	tests     => 1,
+	prefix    => 'perl',
+	overrides => '/etc/cpanimal/overides.conf',
 );
 GetOptions(\%OPTIONS, qw/
 	help|h|?
@@ -135,6 +136,7 @@ GetOptions(\%OPTIONS, qw/
 	prefix=s
 	root=s
 	tests!
+	overrides=s
 /) or exit usage();
 
 my $SPEC;
@@ -282,6 +284,11 @@ sub specfile
 	my $relname = $rel->{name};
 	my $version = $relname; $version =~ s/.*-//;
 
+	my $overrides = parse_overrides_files(
+		$OPTIONS{overrides},
+		'/etc/cpanimal/overrides.conf',
+		"$ENV{HOME}/.cpanimal.overrides");
+
 	my %tokens = (
 		VERSION        => $version,
 		DISTNAME       => $rel->{distribution},
@@ -296,6 +303,16 @@ sub specfile
 		DATE           => strftime("%a %b %d %Y", localtime(time)),
 		REQUIRES       => reqs($requires),
 		BUILDREQUIRES  => reqs('Build', $build_requires),
+
+		OVERRIDE_ADD_REQUIRES      => override_adds($rel->{distribution},
+			'requires', $overrides),
+		OVERRIDE_ADD_BUILDREQUIRES => override_adds($rel->{distribution},
+			'build_requires', $overrides),
+
+		OVERRIDE_SKIP_REQUIRES => override_skips($rel->{distribution},
+			'requires', $overrides),
+		OVERRIDE_SKIP_PROVIDES => override_skips($rel->{distribution},
+			'provides', $overrides),
 	);
 	$tokens{URL} =~ s/$tokens{VERSION}\.tar\.gz$/%{version}.tar.gz/g;
 	my $x = "$SPEC";
@@ -356,6 +373,98 @@ sub setup
 {
 	qx(mkdir -p $OPTIONS{root}/$_)
 		for qw/ RPMS SRPMS SOURCES SPECS BUILD .cache /
+}
+
+# }}}
+# {{{ Overrides handling
+
+sub parse_overrides_files
+{
+	for (@_) {
+		return parse_overrides_file($_) if -f $_;
+	}
+}
+
+sub parse_overrides_file
+{
+	my ($path) = @_;
+	open my $fh, "<", $path
+		or return {};
+	my $over = parse_overrides_io($fh);
+	close $fh;
+	$over;
+}
+
+sub parse_overrides_io
+{
+	my ($io) = @_;
+	my @lines;
+	while (<$io>) {
+		chomp;
+		next if m/^\s*#/;
+		s/;/ ; /g;
+		push @lines, $_;
+	}
+
+	my %over;
+	my @tokens = split(/\s+/, join(' ', @lines));
+	while (@tokens) {
+		my $pkg    = shift @tokens or die "Unexpected end of input\n";
+		next if $pkg eq ';'; # allow multiple semi-colons
+		my $action = shift @tokens or die "Unexpected end of input\n";
+		my $key    = shift @tokens or die "Unexpected end of input\n";
+		my @values;
+		while (@tokens) {
+			my $t = shift @tokens;
+			last if $t eq ';';
+			push @values, $t;
+		}
+		@values or die "Unexpected end of input\n";
+
+		$action =~ m/^(skip|add)$/
+			or die "Unrecognized action '$action'\n(you want 'skip' or 'add')\n";
+		$key =~ m/^(build_requires|requires|provides)$/
+			or die "Unrecognized key '$key'\n(you want 'requires', 'build_requires' or 'provides')\n";
+
+		$over{$pkg}{$action}{$key} ||= [];
+		push @{ $over{$pkg}{$action}{$key} }, @values;
+	}
+	return \%over;
+}
+
+sub override_skips
+{
+	my ($dist, $type, $overrides) = @_;
+	my @l;
+	for my $top ('*', $dist) {
+		next unless exists $overrides->{$top}{skip}{$type};
+
+		for my $skip (@{ $overrides->{$top}{skip}{$type} }) {
+			if ($skip =~ m{^/.*/$}) {
+				push @l, "  sed -e '${skip}d' |\\";
+			} else {
+				push @l, "  sed -e '/^$skip\$/d' |\\";
+			}
+		}
+	}
+	join("\n", @l);
+}
+
+sub override_adds
+{
+	my ($dist, $type, $overrides) = @_;
+	my @l;
+	my $tag = "# unknown type '$type': ";
+	if ($type eq 'requires')       { $tag = 'Requires: ' }
+	if ($type eq 'build_requires') { $tag = 'BuildRequires: ' }
+	if ($type eq 'provides')       { $tag = 'Provides: ' }
+
+	for my $top ('*', $dist) {
+		next unless exists $overrides->{$top}{add}{$type};
+
+		push @l, "$tag$_\n" for @{ $overrides->{$top}{add}{$type} };
+	}
+	join('', @l);
 }
 
 # }}}
@@ -576,7 +685,9 @@ BuildRoot:      %{_tmppath}/%{name}-root
 Source0:        {{DISTNAME}}-%{version}.tar.gz
 
 {{BUILDREQUIRES}}
+{{OVERRIDE_ADD_BUILDREQUIRES}}
 {{REQUIRES}}
+{{OVERRIDE_ADD_REQUIRES}}
 
 %description
 {{DESCRIPTION}}
@@ -590,11 +701,7 @@ cat > %{__new_perl_provides} <<END_PROVIDES
 #!/bin/sh
 # drop bad 'Provides' symbols
 %{__perl_provides} $* | tee /tmp/out |\
-  sed -e '/^perl(Win32)$/d'          |\
-  sed -e '/^perl(Win32::.*)$/d'      |\
-  sed -e '/^perl(Mac)$/d'            |\
-  sed -e '/^perl(Mac::.*)$/d'        |\
-  sed -e '/^perl(Apache::.*)$/d'     |\
+{{OVERRIDE_SKIP_PROVIDES}}
   cat
 END_PROVIDES
 chmod +x %{__new_perl_provides}
@@ -605,11 +712,7 @@ cat > %{__new_perl_requires} <<END_REQUIRES
 #!/bin/sh
 # drop bad 'Requires' symbols
 %{__perl_requires} $* | tee out2 |\
-  sed -e '/^perl(Win32)$/d'          |\
-  sed -e '/^perl(Win32::.*)$/d'      |\
-  sed -e '/^perl(Mac)$/d'            |\
-  sed -e '/^perl(Mac::.*)$/d'        |\
-  sed -e '/^perl(Apache::.*)$/d'     |\
+{{OVERRIDE_SKIP_REQUIRES}}
   cat
 END_REQUIRES
 chmod +x %{__new_perl_requires}
