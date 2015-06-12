@@ -678,8 +678,8 @@ if ($ARGV[0] eq 'spec') {
 
 __DATA__
 Name:           {{RPMPREFIX}}{{DISTNAME}}
-Obsoletes:      {{RPMPREFIX}}-{{DISTNAME}}
-Provides:       {{RPMPREFIX}}-{{DISTNAME}}
+Obsoletes:      {{RPMPREFIX}}{{DISTNAME}}
+Provides:       {{RPMPREFIX}}{{DISTNAME}}
 Version:        {{VERSION}}
 Release:        1%{?_dist}
 Summary:        {{SUMMARY}}
