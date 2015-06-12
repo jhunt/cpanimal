@@ -277,7 +277,8 @@ sub specfile
 	open my $spec, ">", $file
 		or die "Failed to open $file for writing: $!\n";
 
-	my $PREFIX = "hijinx-";
+	my $PREFIX = $OPTIONS{prefix};
+	$PREFIX = "$PREFIX-" unless $PREFIX =~ m/-$/;
 	my $relname = $rel->{name};
 	my $version = $relname; $version =~ s/.*-//;
 
@@ -562,8 +563,8 @@ if ($ARGV[0] eq 'spec') {
 
 __DATA__
 Name:           {{RPMPREFIX}}{{DISTNAME}}
-Obsoletes:      perl-{{DISTNAME}}
-Provides:       perl-{{DISTNAME}}
+Obsoletes:      {{RPMPREFIX}}-{{DISTNAME}}
+Provides:       {{RPMPREFIX}}-{{DISTNAME}}
 Version:        {{VERSION}}
 Release:        1%{?_dist}
 Summary:        {{SUMMARY}}
