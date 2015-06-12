@@ -7,6 +7,7 @@ use Cwd           qw/cwd/;       # core
 use POSIX         qw/strftime/;  # core
 use Data::Dumper;                # core
 use Getopt::Long;                # core
+use Archive::Tar;                # core
 
 # {{{ use JSON
 
@@ -272,12 +273,36 @@ sub reqs
 	} @$list);
 }
 
+chomp(my $ARCH = qx(uname -m));
+sub module_arch
+{
+	my ($archive) = @_;
+	my $tar = Archive::Tar->new;
+	$tar->read($archive);
+
+	for ($tar->list_files()) {
+		return $ARCH if m/\.xs$/;
+	}
+	return 'noarch';
+}
+
 sub specfile
 {
 	my ($file, $rel, $requires, $build_requires) = @_;
 	$file = "$OPTIONS{root}/$file";
 	open my $spec, ">", $file
 		or die "Failed to open $file for writing: $!\n";
+
+	my $url = $rel->{download_url};
+	(my $tarball = $url) =~ s!.*/!!;
+	if (!-f "SOURCES/$tarball") {
+		step "downloading $url";
+		run qq(curl $url > SOURCES/$tarball);
+		$? == 0 or die "Failed.\n";
+	} else {
+		step "using pre-existing $tarball";
+	}
+	my $arch = module_arch("SOURCES/$tarball");
 
 	my $PREFIX = $OPTIONS{prefix};
 	$PREFIX = "$PREFIX-" unless $PREFIX =~ m/-$/;
@@ -296,7 +321,7 @@ sub specfile
 		DISTNAME       => $rel->{distribution},
 		SOURCE         => $relname.'.tar.gz',
 		RPMPREFIX      => $PREFIX,
-		RPMFILE        => $PREFIX.$relname.'-1.x86_64.rpm', # FIXME: x86_64 shouldn't be hardcoded....
+		RPMFILE        => $PREFIX.$relname."-1.$arch.rpm",
 		SUMMARY        => $rel->{abstract},
 		DESCRIPTION    => $rel->{abstract},
 		URL            => $rel->{download_url},
@@ -305,6 +330,7 @@ sub specfile
 		DATE           => strftime("%a %b %d %Y", localtime(time)),
 		REQUIRES       => reqs($requires),
 		BUILDREQUIRES  => reqs('Build', $build_requires),
+		BUILDARCH      => $arch,
 
 		OVERRIDE_ADD_REQUIRES      => override_adds($rel->{distribution},
 			'requires', $overrides),
@@ -535,6 +561,26 @@ EOF
 	print "\n";
 }
 
+sub arch
+{
+	my ($name) = @_;
+	my $rel = lookup($name)
+		or die "Module '$name' not found on CPAN...\n";
+	my $dist = $rel->{distribution};
+
+	my $url = $rel->{download_url};
+	(my $file = $url) =~ s!.*/!!;
+	if (! -f "SOURCES/$file") {
+		step "downloading $url";
+		run qq(curl $url > SOURCES/$file);
+		print "\n";
+		$? == 0 or die "Failed.\n";
+	}
+
+	my $arch = module_arch("SOURCES/$file");
+	print "$name is $arch\n";
+}
+
 sub build_all
 {
 	for (@_) {
@@ -575,16 +621,7 @@ sub build
 
 	my %tokens = specfile("$dist.spec", $rel, $requires, $build_requires);
 	step "wrote spec file for $name to $OPTIONS{root}/SPECS/$dist.spec";
-
-	my $url = $rel->{download_url};
-	(my $file = $url) =~ s!.*/!!;
-	if (!-f "SOURCES/$file") {
-		step "downloading $url";
-		run qq(curl $url > SOURCES/$file);
-		$? == 0 or die "Failed.\n";
-	} else {
-		step "using pre-existing $file";
-	}
+	my $arch = module_arch("SOURCE/$tokens{SOURCE}");
 
 	step "building RPM package";
 	runlog qq(rpmbuild -ba -D "_topdir $OPTIONS{root}" $dist.spec </dev/null);
@@ -612,7 +649,7 @@ sub build
 	build_all @$requires;
 
 	step "installing RPM package";
-	runlog qq($SUDO rpm -U RPMS/x86_64/$tokens{RPMFILE});
+	runlog qq($SUDO rpm -U RPMS/$arch/$tokens{RPMFILE});
 	if ($? != 0) {
 		# check the log for perl(...) deps
 		unless (check_log(qr/is already installed/)) {
@@ -622,7 +659,7 @@ sub build
 
 			# try the install again
 			step "retrying RPM package installation";
-			runlog qq($SUDO rpm -U RPMS/x86_64/$tokens{RPMFILE});
+			runlog qq($SUDO rpm -U RPMS/$arch/$tokens{RPMFILE});
 			if ($? != 0) {
 				dump_log;
 				die "Failed\n";
@@ -660,6 +697,11 @@ if ($ARGV[0] eq 'spec') {
 		print "\n\n";
 	}
 
+} elsif ($ARGV[0] eq 'arch') {
+	shift @ARGV;
+	setup;
+	arch $_ for @ARGV;
+
 } elsif ($ARGV[0] eq 'build') {
 	shift @ARGV;
 	setup;
@@ -688,6 +730,7 @@ License:        distributable
 Group:          Development/Libraries
 
 BuildRoot:      %{_tmppath}/%{name}-root
+BuildArch:      {{BUILDARCH}}
 Source0:        {{DISTNAME}}-%{version}.tar.gz
 
 {{BUILDREQUIRES}}
