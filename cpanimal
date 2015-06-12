@@ -1,0 +1,678 @@
+#!/usr/bin/perl
+
+(my $SCRIPT = $0) =~ s/^.*\///;
+use strict;
+use warnings;
+use Cwd           qw/cwd/;       # core
+use POSIX         qw/strftime/;  # core
+use Data::Dumper;                # core
+use Getopt::Long;                # core
+
+# {{{ use JSON
+
+my $SRC;
+sub _s
+{
+	my ($i, $s, $a, $b, $l) = (0, "", "", "", length($SRC));
+
+	$b = substr($SRC, $i++, 1);
+	if ($b ne '"') {
+		while ($i < $l) {
+			$a = $b; $b = substr($SRC, $i++, 1);
+			if ($a eq '\\') {
+				$s .= $b; $a = $b = '';
+			} else {
+				$s .= $a;
+				if ($b eq '"') { $b = ''; last; }
+			}
+		}
+		$s .= $b;
+	}
+	$SRC = substr($SRC, $i);
+	$s;
+}
+sub _lex
+{
+	$SRC =~ s/^\s+//;
+	return undef unless $SRC;
+
+	return     $1  if $SRC =~ s/^([{}\[\],:])//;
+	return [   $1] if $SRC =~ s/^([+-]?[0-9]+(?:\.[0-9]+)?(?:e[+-]?\d+)?)//;
+	return [    1] if $SRC =~ s/^true\b//;
+	return [    0] if $SRC =~ s/^false\b//;
+	return [undef] if $SRC =~ s/^null\b//;
+	return [ _s()] if $SRC =~ s/^"//;
+	die "Malformed JSON at ".substr($SRC, 0, 140)."\n";
+}
+
+sub _decode_hash
+{
+	my $h = {};
+	while (my $t = _lex()) {
+		unless (ref $t) {
+			next      if $t eq ',';
+			return $h if $t eq '}';
+			die "Invalid '$t' in hash!\n";
+		}
+		my $key = $t->[0];
+
+		$t = _lex() or last;
+		die "Missing ':' key/value separator!\n" unless $t eq ':';
+
+		$t = _lex() or last;
+		if (ref $t)       { $h->{$key} = $t->[0] }
+		elsif ($t eq '{') { $h->{$key} = _decode_hash() }
+		elsif ($t eq '[') { $h->{$key} = _decode_list() }
+		else { die "Unexpected $t after ':' key/value separator!\n" }
+	}
+	die "Unexpected end of input string\n";
+}
+
+sub _decode_list
+{
+	my $l = [];
+	while (my $t = _lex()) {
+		unless (ref $t) {
+			next      if $t eq ',';
+			return $l if $t eq ']';
+		}
+
+		if (ref $t)       { push @$l, $t->[0] }
+		elsif ($t eq '{') { push @$l, _decode_hash() }
+		elsif ($t eq '[') { push @$l, _decode_list() }
+		else { die "Unexpected $t in list!\n" }
+	}
+	die "Unexpected end of input string\n";
+}
+
+sub decode_json
+{
+	$SRC = $_[0];
+	my $t = _lex();
+	die "Unexpected end of input string\n" if !!! $t;
+	die "Invalid literal at top-level!\n"  if ref $t;
+
+	return _decode_hash() if $t eq '{';
+	return _decode_list() if $t eq '[';
+
+	die "Invalid '$t' at top-level!\n";
+}
+# }}}
+# {{{ ANSI coloring
+my %C = (
+	x      => "\x1b[00m",
+	black  => "\x1b[30m",
+	red    => "\x1b[31m",
+	green  => "\x1b[32m",
+	yellow => "\x1b[33m",
+	blue   => "\x1b[34m",
+	purple => "\x1b[35m",
+	cyan   => "\x1b[36m",
+	white  => "\x1b[37m",
+);
+unless (-t STDOUT) {
+	$C{$_} = '' for keys %C;
+}
+# }}}
+# {{{ Options Processing
+
+sub usage
+{
+	print "USAGE: $SCRIPT  OPTIONS  COMMAND  [MODULE [MODULE ...]]\n";
+	return 0;
+}
+
+my %OPTIONS = (
+	root     => cwd,
+	template => undef,
+	tests    => 1,
+	prefix   => 'perl',
+);
+GetOptions(\%OPTIONS, qw/
+	help|h|?
+	debug|D
+
+	prefix=s
+	root=s
+	tests!
+/) or exit usage();
+
+my $SPEC;
+if (defined $OPTIONS{template}) {
+	open my $tpl, "<", $OPTIONS{template}
+		or die "$OPTIONS{template}: $!\n";
+	$SPEC = do { local $/; <$tpl> };
+	close $tpl;
+} else {
+	$SPEC = do { local $/; <DATA> };
+}
+
+my $PWD = cwd;
+my $SUDO = ($< == 0 ? '' : 'sudo ');
+my %SEEN = ();
+my %HAVE = ( perl => 1 );
+
+# }}}
+# {{{ Helper utilities
+sub bail
+{
+	my ($msg, @rest) = @_;
+	die $msg."\n".Dumper(@rest) if $ENV{DEBUG};
+	die $msg."\n(re-run with DEBUG=1 in your environment for diagnostics)\n";
+}
+
+sub run
+{
+	my ($command) = @_;
+	print "$C{yellow}+ $command$C{x}\n";
+	qx($command);
+}
+
+sub runlog
+{
+	my ($command) = @_;
+	print "$C{yellow}+ $command$C{x}\n";
+	qx($command >$OPTIONS{root}/.lastlog 2>&1);
+}
+
+sub stage
+{
+	print "$C{cyan}####   $_[0]   ####$C{x}\n";
+}
+
+sub step
+{
+	print "$C{green}>> $_[0]$C{x}\n"
+}
+
+sub lookup
+{
+	my ($name) = @_;
+	if (-f "$OPTIONS{root}/.cache/$name") {
+		open my $fh, "<", "$OPTIONS{root}/.cache/$name";
+		if ($fh) {
+			my $v = decode_json(do { local $/; <$fh> });
+			close $fh;
+			return $v;
+		}
+		warn "Failed to open cache file: $OPTIONS{root}/.cache/$name; contactin API\n";
+	}
+
+	my $url = "http://api.metacpan.org";
+
+	step "retrieving $url/module/$name";
+	my $json = qx(curl -q $url/module/$name 2>/dev/null);
+	$? == 0 or return undef;
+
+	my $module = decode_json($json);
+	$module->{message} and die "error: $module->{message}\n";
+	$module->{distribution}
+		or bail "No distribution found in module metadata!\n".
+		        "Either this module is corrupt, or $SCRIPT needs some TLC...\n", $module;
+
+	step "retrieving $url/release/$module->{distribution}";
+	$json = qx(curl -q $url/release/$module->{distribution} 2>/dev/null);
+	$? == 0 or return undef;
+
+	if (-d "$OPTIONS{root}/.cache") {
+		open my $fh, ">", "$OPTIONS{root}/.cache/$name";
+		if ($fh) {
+			print $fh $json;
+			close $fh;
+		} else {
+			warn "Unable to open cache file $OPTIONS{root}/.cache/$name for writing: $!\n";
+		}
+	}
+	my $rel = decode_json($json);
+	$rel->{message} and die "error: $rel->{message}\n";
+	$rel->{distribution}
+		or bail "No distribution found in release metadata!\n".
+		        "Either this module is corrupt, or $SCRIPT needs some TLC...\n", $rel;
+	$rel;
+}
+
+sub deps
+{
+	my ($rel) = @_;
+
+	my (@requires, @build_requires);
+	for my $dep (@{ $rel->{dependency} }) {
+		next if $dep->{phase}        eq 'develop';
+		next if $dep->{relationship} ne 'requires';
+
+		if ($dep->{phase} =~ m/^(configure|test|build)/) {
+			push @build_requires, $dep;
+		} else {
+			push @requires,       $dep;
+		}
+	}
+
+	return \@requires, \@build_requires;
+}
+
+sub req_name
+{
+	my ($mod, $ver) = @_;
+	$mod = "perl($mod)" unless $mod eq 'perl';
+	$ver ? "$mod >= $ver" : $mod;
+}
+
+sub reqs
+{
+	my ($tag, $list) = @_;
+	if (!$list) {
+		$list = $tag;
+		$tag = '';
+	}
+	join('', map {
+		sprintf("%-15s %s\n", "${tag}Requires:",
+			req_name($_->{module}, $_->{version}))
+	} @$list);
+}
+
+sub specfile
+{
+	my ($file, $rel, $requires, $build_requires) = @_;
+	$file = "$OPTIONS{root}/$file";
+	open my $spec, ">", $file
+		or die "Failed to open $file for writing: $!\n";
+
+	my $PREFIX = "hijinx-";
+	my $relname = $rel->{name};
+	my $version = $relname; $version =~ s/.*-//;
+
+	my %tokens = (
+		VERSION        => $version,
+		DISTNAME       => $rel->{distribution},
+		SOURCE         => $relname.'.tar.gz',
+		RPMPREFIX      => $PREFIX,
+		RPMFILE        => $PREFIX.$relname.'-1.x86_64.rpm', # FIXME: x86_64 shouldn't be hardcoded....
+		SUMMARY        => $rel->{abstract},
+		DESCRIPTION    => $rel->{abstract},
+		URL            => $rel->{download_url},
+		PACKAGER_NAME  => $ENV{PACKAGER_NAME}  ||  $ENV{USER}                  || '(nobody)',
+		PACKAGER_EMAIL => $ENV{PACKAGER_EMAIL} || "$ENV{USER}\@$ENV{HOSTNAME}" || 'none',
+		DATE           => strftime("%a %b %d %Y", localtime(time)),
+		REQUIRES       => reqs($requires),
+		BUILDREQUIRES  => reqs('Build', $build_requires),
+	);
+	$tokens{URL} =~ s/$tokens{VERSION}\.tar\.gz$/%{version}.tar.gz/g;
+	my $x = "$SPEC";
+	$x =~ s/\{\{$_\}\}/$tokens{$_}/eg for keys %tokens;
+	print $spec $x;
+	close $spec;
+
+	return %tokens;
+}
+
+sub dump_log
+{
+	print $C{$_[0] || 'red'}; print "-" x 80; print "\n";
+	print qx(cat $OPTIONS{root}/.lastlog);
+	print "-" x 80; print "\n"; print $C{x};
+
+	if ($OPTIONS{debug}) {
+		print "have '$_'\n" for sort keys %HAVE;
+	}
+}
+
+sub check_log
+{
+	my ($re) = @_;
+	open my $fh, "<", "$OPTIONS{root}/.lastlog" or return undef;
+	while (<$fh>) {
+		close $fh and return 1 if m/$re/;
+	}
+	close $fh and return undef;
+}
+
+sub grep_log
+{
+	my ($re) = @_;
+	my @l;
+	open my $fh, "<", "$OPTIONS{root}/.lastlog" or return;
+	while (<$fh>) {
+		push @l, $1 if m/$re/;
+	}
+	close $fh;
+	return @l;
+}
+
+sub have_module
+{
+	my ($mod, $ver) = @_;
+	return 1 if $HAVE{$mod};    # FIXME: handle version deps
+
+	if ($mod ne 'Module::Runtime' and have_module('Module::Runtime')) {
+		runlog qq|perl -MModule::Runtime=use_module -e 'use_module("$mod");'|;
+	} else {
+		runlog qq|perl -M$mod -e 'exit 0;'|;
+	}
+	return ($HAVE{$mod} = ($? == 0));
+}
+
+sub setup
+{
+	qx(mkdir -p $OPTIONS{root}/$_)
+		for qw/ RPMS SRPMS SOURCES SPECS BUILD .cache /
+}
+
+# }}}
+
+sub spec
+{
+	my ($name) = @_;
+	my $rel = lookup($name)
+		or die "Module '$name' not found on CPAN...\n";
+	my $dist = $rel->{distribution};
+	my ($requires ,$build_requires) = deps($rel);
+
+	specfile("SPECS/$dist.spec", $rel, $requires, $build_requires);
+	step "wrote spec file for $name to $OPTIONS{root}/SPECS/$dist.spec";
+}
+
+sub source
+{
+	my ($name) = @_;
+	stage "Getting source for $name";
+	my $rel = lookup($name)
+		or die "Module '$name' not found on CPAN...\n";
+	my $dist = $rel->{distribution};
+
+	my $url = $rel->{download_url};
+	(my $file = $url) =~ s!.*/!!;
+	step "downloading $url";
+	run qq(curl $url > SOURCES/$file);
+	print "\n";
+	$? == 0 or die "Failed.\n";
+}
+
+sub info
+{
+	my ($name) = @_;
+	my $rel = lookup($name)
+		or die "Module '$name' not found on CPAN...\n";
+
+	print <<EOF;
+============================== $name
+$rel->{distribution} $rel->{version} by $rel->{author} 
+  $rel->{download_url}
+  $rel->{status} / $rel->{maturity} (tests: $rel->{tests}{pass}/$rel->{tests}{fail}/$rel->{tests}{unknown}/$rel->{tests}{unknown}  pas/fail/unknown/na)
+
+$rel->{abstract}
+
+EOF
+	if ($rel->{provides}) {
+		print "Provides:\n";
+		print "  - $_\n" for sort @{ $rel->{provides} };
+	} else {
+		print "Provides: none\n";
+	}
+	print "\n";
+	if ($rel->{dependency}) {
+		print "Prereqs:\n";
+		for (@{ $rel->{dependency} }) {
+			print "  - $_->{phase} $_->{relationship} $_->{module} ($_->{version})\n"
+				if  $_->{version};
+			print "  - $_->{phase} $_->{relationship} $_->{module}\n"
+				if !$_->{version};
+		}
+	} else {
+		print "Prereqs: none\n";
+	}
+	print "\n";
+}
+
+sub build_all
+{
+	for (@_) {
+		my ($mod, $ver);
+		if (ref $_) {
+			$mod = $_->{module};
+			$ver = $_->{version};
+		} else {
+			$mod = $_;
+		}
+		build($mod, $ver) unless have_module($mod);
+	}
+}
+
+sub build
+{
+	my ($name) = @_;
+	die "refusing to build '$name'!\n" if $name =~ m/^(mod_)?perl$/;
+	stage "Building $name";
+
+	$SEEN{$name} = 1;
+	my $rel = lookup($name)
+		or die "Module '$name' not found on CPAN...\n";
+	my $dist = $rel->{distribution};
+	die "refusing to build '$dist'!\n" if $dist =~ m/^(mod_)?perl$/;
+	my ($requires ,$build_requires) = deps($rel);
+
+	for my $dep (@$build_requires) {
+		print "   $C{green}$name $dep->{relationship} $dep->{module} (for $dep->{phase})$C{x}\n";
+		if (!have_module($dep->{module}, $dep->{version})) {
+			die "Module dependency loop detected; I have no idea what to do now...\n"
+				if $SEEN{$dep->{module}};
+
+			step "dependent module $dep->{module} needs built";
+			build($dep->{module});
+		}
+	}
+
+	my %tokens = specfile("$dist.spec", $rel, $requires, $build_requires);
+	step "wrote spec file for $name to $OPTIONS{root}/SPECS/$dist.spec";
+
+	my $url = $rel->{download_url};
+	(my $file = $url) =~ s!.*/!!;
+	step "downloading $url";
+	run qq(curl $url > SOURCES/$file);
+	$? == 0 or die "Failed.\n";
+
+	step "building RPM package";
+	runlog qq(rpmbuild -ba -D "_topdir $OPTIONS{root}" $dist.spec </dev/null);
+	if ($? != 0) {
+		if (!check_log(qw/perl\(.*?\) is needed by/)) {
+			dump_log;
+			die "Failed.\n";
+		}
+		# check the log for perl(...) build deps
+
+		step "building missing build dependencies";
+		build_all grep_log(qr/perl\((.*?)\) is needed by/);
+
+		# try the build again
+		step "retrying RPM package build";
+		runlog qq(rpmbuild -ba -D "_topdir $OPTIONS{root}" $dist.spec </dev/null);
+		if ($? != 0) {
+			dump_log;
+			die "Failed.\n";
+		}
+		run qq|ls -lh $tokens{RPMFILE}|;
+	}
+
+	step "building runtime / installation dependencies";
+	build_all @$requires;
+
+	step "installing RPM package";
+	runlog qq($SUDO rpm -ivH RPMS/x86_64/$tokens{RPMFILE});
+	if ($? != 0) {
+		# check the log for perl(...) deps
+		unless (check_log(qr/is already installed/)) {
+			# build the new deps
+			step "building missed dependencies";
+			build_all grep_log(qr/perl\((.*?)\) is needed by/);
+
+			# try the install again
+			step "retrying RPM package installation";
+			runlog qq($SUDO rpm -ivH RPMS/x86_64/$tokens{RPMFILE});
+			if ($? != 0) {
+				dump_log;
+				die "Failed\n";
+			}
+		} else {
+			print "... looks like $name is already installed?\n";
+			dump_log 'purple';
+		}
+	}
+
+	print "\n\n";
+	$HAVE{$name} = 1;
+	delete $SEEN{$name};
+}
+
+if ($ARGV[0] eq 'spec') {
+	shift @ARGV;
+	setup;
+	spec $_ for @ARGV;
+
+} elsif ($ARGV[0] eq 'source') {
+	shift @ARGV;
+	setup;
+	source $_ for @ARGV;
+
+} elsif ($ARGV[0] eq 'info') {
+	shift @ARGV;
+	info $_ for @ARGV;
+
+} elsif ($ARGV[0] eq 'dump') {
+	shift @ARGV;
+	for (@ARGV) {
+		my $rel = lookup($_) or next;
+		print Dumper($_ => $rel);
+		print "\n\n";
+	}
+
+} elsif ($ARGV[0] eq 'build') {
+	shift @ARGV;
+	setup;
+	build 'Module::Runtime'; # my deps
+	build $_ for @ARGV;
+
+} elsif ($ARGV[0]) {
+	setup;
+	build 'Module::Runtime'; # my deps
+	build $_ for @ARGV;
+
+} else {
+	print STDERR "USAGE: $0 (spec|source|info|build) Module::Name\n";
+	exit 1;
+}
+
+__DATA__
+Name:           {{RPMPREFIX}}{{DISTNAME}}
+Obsoletes:      perl-{{DISTNAME}}
+Provides:       perl-{{DISTNAME}}
+Version:        {{VERSION}}
+Release:        1%{?_dist}
+Summary:        {{SUMMARY}}
+URL:            {{URL}}
+License:        distributable
+Group:          Development/Libraries
+
+BuildRoot:      %{_tmppath}/%{name}-root
+Source0:        {{DISTNAME}}-%{version}.tar.gz
+
+{{BUILDREQUIRES}}
+{{REQUIRES}}
+
+%description
+{{DESCRIPTION}}
+
+##########################################################
+%prep
+%setup -q -n {{DISTNAME}}-%{version}
+
+%define __new_perl_provides %{_builddir}/cpan-perl-provides
+cat > %{__new_perl_provides} <<END_PROVIDES
+#!/bin/sh
+# drop bad 'Provides' symbols
+%{__perl_provides} $* | tee /tmp/out |\
+  sed -e '/^perl(Win32)$/d'          |\
+  sed -e '/^perl(Win32::.*)$/d'      |\
+  sed -e '/^perl(Mac)$/d'            |\
+  sed -e '/^perl(Mac::.*)$/d'        |\
+  sed -e '/^perl(Apache::.*)$/d'     |\
+  cat
+END_PROVIDES
+chmod +x %{__new_perl_provides}
+%define __perl_provides %{__new_perl_provides}
+
+%define __new_perl_requires %{_builddir}/cpan-perl-requires
+cat > %{__new_perl_requires} <<END_REQUIRES
+#!/bin/sh
+# drop bad 'Requires' symbols
+%{__perl_requires} $* | tee out2 |\
+  sed -e '/^perl(Win32)$/d'          |\
+  sed -e '/^perl(Win32::.*)$/d'      |\
+  sed -e '/^perl(Mac)$/d'            |\
+  sed -e '/^perl(Mac::.*)$/d'        |\
+  sed -e '/^perl(Apache::.*)$/d'     |\
+  cat
+END_REQUIRES
+chmod +x %{__new_perl_requires}
+%define __perl_requires %{__new_perl_requires}
+
+
+##########################################################
+%build
+if [[ -f Makefile.PL ]]; then
+  CFLAGS="$RPM_OPT_FLAGS" perl Makefile.PL INSTALLDIRS=vendor
+  make
+
+elif [[ -f Build.PL ]]; then
+  CFLAGS="$RPM_OPT_FLAGS" perl Build.PL --installdirs=vendor
+  ./Build
+
+else
+  echo "Error: No Makefile.PL or Build.PL found!!"
+  exit 1
+
+fi
+
+
+##########################################################
+%check
+#make test
+
+
+##########################################################
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+
+##########################################################
+%install
+rm -rf $RPM_BUILD_ROOT
+
+if [[ -f Makefile.PL ]]; then
+  make install DESTDIR=$RPM_BUILD_ROOT
+
+elif [[ -f Build.PL ]]; then
+  ./Build install --destdir=$RPM_BUILD_ROOT
+
+else
+  echo "Error: No Makefile.PL or Build.PL found!!"
+  exit 1
+
+fi
+
+[ -x /usr/lib/rpm/brp-compress ] && /usr/lib/rpm/brp-compress
+
+find $RPM_BUILD_ROOT \( -name perllocal.pod -o -name .packlist \) -exec rm -v {} \;
+find $RPM_BUILD_ROOT/usr -type f -print | \
+  sed "s@^$RPM_BUILD_ROOT@@g" > {{DISTNAME}}-%{version}-files
+
+if [ "x$(cat {{DISTNAME}}-%{version}-files)" = "x" ] ; then
+  echo "Error: No files found to package!!"
+  exit 1
+
+fi
+
+%files -f {{DISTNAME}}-%{version}-files
+%defattr(-,root,root)
+
+%changelog
+* {{DATE}} {{PACKAGER_NAME}} <{{PACKAGER_EMAIL}}> {{VERSION}}-1
+- Initial package, courtesy of cpanimal

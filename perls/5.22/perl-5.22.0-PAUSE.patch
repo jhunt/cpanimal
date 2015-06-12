@@ -1,0 +1,219 @@
+diff -Naur a/cpan/IO-Socket-IP/lib/IO/Socket/IP.pm b/cpan/IO-Socket-IP/lib/IO/Socket/IP.pm
+--- a/cpan/IO-Socket-IP/lib/IO/Socket/IP.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/cpan/IO-Socket-IP/lib/IO/Socket/IP.pm	2015-06-11 23:21:28.649826530 -0400
+@@ -1117,8 +1117,7 @@
+ # Since IO::Socket->new( Domain => ... ) will delete the Domain parameter
+ # before calling ->configure, we need to keep track of which it was
+ 
+-package # hide from indexer
+-   IO::Socket::IP::_ForINET;
++package IO::Socket::IP::_ForINET;
+ use base qw( IO::Socket::IP );
+ 
+ sub configure
+@@ -1131,8 +1130,7 @@
+    $self->configure( { %$arg, Family => Socket::AF_INET() } );
+ }
+ 
+-package # hide from indexer
+-   IO::Socket::IP::_ForINET6;
++package IO::Socket::IP::_ForINET6;
+ use base qw( IO::Socket::IP );
+ 
+ sub configure
+diff -Naur a/cpan/Locale-Codes/lib/Locale/Codes/Country_Codes.pm b/cpan/Locale-Codes/lib/Locale/Codes/Country_Codes.pm
+--- a/cpan/Locale-Codes/lib/Locale/Codes/Country_Codes.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/cpan/Locale-Codes/lib/Locale/Codes/Country_Codes.pm	2015-06-11 23:21:28.593826529 -0400
+@@ -1,5 +1,4 @@
+-package #
+-Locale::Codes::Country_Codes;
++package Locale::Codes::Country_Codes;
+ 
+ # This file was automatically generated.  Any changes to this file will
+ # be lost the next time 'harvest_data' is run.
+diff -Naur a/cpan/Locale-Codes/lib/Locale/Codes/Country_Retired.pm b/cpan/Locale-Codes/lib/Locale/Codes/Country_Retired.pm
+--- a/cpan/Locale-Codes/lib/Locale/Codes/Country_Retired.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/cpan/Locale-Codes/lib/Locale/Codes/Country_Retired.pm	2015-06-11 23:21:28.570826539 -0400
+@@ -1,5 +1,4 @@
+-package #
+-Locale::Codes::Country_Retired;
++package Locale::Codes::Country_Retired;
+ 
+ # This file was automatically generated.  Any changes to this file will
+ # be lost the next time 'deprecate_codes' is run.
+diff -Naur a/cpan/Locale-Codes/lib/Locale/Codes/Currency_Codes.pm b/cpan/Locale-Codes/lib/Locale/Codes/Currency_Codes.pm
+--- a/cpan/Locale-Codes/lib/Locale/Codes/Currency_Codes.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/cpan/Locale-Codes/lib/Locale/Codes/Currency_Codes.pm	2015-06-11 23:21:28.574826538 -0400
+@@ -1,5 +1,4 @@
+-package #
+-Locale::Codes::Currency_Codes;
++package Locale::Codes::Currency_Codes;
+ 
+ # This file was automatically generated.  Any changes to this file will
+ # be lost the next time 'harvest_data' is run.
+diff -Naur a/cpan/Locale-Codes/lib/Locale/Codes/Currency_Retired.pm b/cpan/Locale-Codes/lib/Locale/Codes/Currency_Retired.pm
+--- a/cpan/Locale-Codes/lib/Locale/Codes/Currency_Retired.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/cpan/Locale-Codes/lib/Locale/Codes/Currency_Retired.pm	2015-06-11 23:21:28.583826539 -0400
+@@ -1,5 +1,4 @@
+-package #
+-Locale::Codes::Currency_Retired;
++package Locale::Codes::Currency_Retired;
+ 
+ # This file was automatically generated.  Any changes to this file will
+ # be lost the next time 'deprecate_codes' is run.
+diff -Naur a/cpan/Locale-Codes/lib/Locale/Codes/LangExt_Codes.pm b/cpan/Locale-Codes/lib/Locale/Codes/LangExt_Codes.pm
+--- a/cpan/Locale-Codes/lib/Locale/Codes/LangExt_Codes.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/cpan/Locale-Codes/lib/Locale/Codes/LangExt_Codes.pm	2015-06-11 23:21:28.586826536 -0400
+@@ -1,5 +1,4 @@
+-package #
+-Locale::Codes::LangExt_Codes;
++package Locale::Codes::LangExt_Codes;
+ 
+ # This file was automatically generated.  Any changes to this file will
+ # be lost the next time 'harvest_data' is run.
+diff -Naur a/cpan/Locale-Codes/lib/Locale/Codes/LangExt_Retired.pm b/cpan/Locale-Codes/lib/Locale/Codes/LangExt_Retired.pm
+--- a/cpan/Locale-Codes/lib/Locale/Codes/LangExt_Retired.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/cpan/Locale-Codes/lib/Locale/Codes/LangExt_Retired.pm	2015-06-11 23:21:28.448826537 -0400
+@@ -1,5 +1,4 @@
+-package #
+-Locale::Codes::LangExt_Retired;
++package Locale::Codes::LangExt_Retired;
+ 
+ # This file was automatically generated.  Any changes to this file will
+ # be lost the next time 'deprecate_codes' is run.
+diff -Naur a/cpan/Locale-Codes/lib/Locale/Codes/LangFam_Codes.pm b/cpan/Locale-Codes/lib/Locale/Codes/LangFam_Codes.pm
+--- a/cpan/Locale-Codes/lib/Locale/Codes/LangFam_Codes.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/cpan/Locale-Codes/lib/Locale/Codes/LangFam_Codes.pm	2015-06-11 23:21:28.448826537 -0400
+@@ -1,5 +1,4 @@
+-package #
+-Locale::Codes::LangFam_Codes;
++package Locale::Codes::LangFam_Codes;
+ 
+ # This file was automatically generated.  Any changes to this file will
+ # be lost the next time 'harvest_data' is run.
+diff -Naur a/cpan/Locale-Codes/lib/Locale/Codes/LangFam_Retired.pm b/cpan/Locale-Codes/lib/Locale/Codes/LangFam_Retired.pm
+--- a/cpan/Locale-Codes/lib/Locale/Codes/LangFam_Retired.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/cpan/Locale-Codes/lib/Locale/Codes/LangFam_Retired.pm	2015-06-11 23:21:28.451826538 -0400
+@@ -1,5 +1,4 @@
+-package #
+-Locale::Codes::LangFam_Retired;
++package Locale::Codes::LangFam_Retired;
+ 
+ # This file was automatically generated.  Any changes to this file will
+ # be lost the next time 'deprecate_codes' is run.
+diff -Naur a/cpan/Locale-Codes/lib/Locale/Codes/Language_Codes.pm b/cpan/Locale-Codes/lib/Locale/Codes/Language_Codes.pm
+--- a/cpan/Locale-Codes/lib/Locale/Codes/Language_Codes.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/cpan/Locale-Codes/lib/Locale/Codes/Language_Codes.pm	2015-06-11 23:21:28.557826539 -0400
+@@ -1,5 +1,4 @@
+-package #
+-Locale::Codes::Language_Codes;
++package Locale::Codes::Language_Codes;
+ 
+ # This file was automatically generated.  Any changes to this file will
+ # be lost the next time 'harvest_data' is run.
+diff -Naur a/cpan/Locale-Codes/lib/Locale/Codes/Language_Retired.pm b/cpan/Locale-Codes/lib/Locale/Codes/Language_Retired.pm
+--- a/cpan/Locale-Codes/lib/Locale/Codes/Language_Retired.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/cpan/Locale-Codes/lib/Locale/Codes/Language_Retired.pm	2015-06-11 23:21:28.451826538 -0400
+@@ -1,5 +1,4 @@
+-package #
+-Locale::Codes::Language_Retired;
++package Locale::Codes::Language_Retired;
+ 
+ # This file was automatically generated.  Any changes to this file will
+ # be lost the next time 'deprecate_codes' is run.
+diff -Naur a/cpan/Locale-Codes/lib/Locale/Codes/LangVar_Codes.pm b/cpan/Locale-Codes/lib/Locale/Codes/LangVar_Codes.pm
+--- a/cpan/Locale-Codes/lib/Locale/Codes/LangVar_Codes.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/cpan/Locale-Codes/lib/Locale/Codes/LangVar_Codes.pm	2015-06-11 23:21:28.573826540 -0400
+@@ -1,5 +1,4 @@
+-package #
+-Locale::Codes::LangVar_Codes;
++package Locale::Codes::LangVar_Codes;
+ 
+ # This file was automatically generated.  Any changes to this file will
+ # be lost the next time 'harvest_data' is run.
+diff -Naur a/cpan/Locale-Codes/lib/Locale/Codes/LangVar_Retired.pm b/cpan/Locale-Codes/lib/Locale/Codes/LangVar_Retired.pm
+--- a/cpan/Locale-Codes/lib/Locale/Codes/LangVar_Retired.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/cpan/Locale-Codes/lib/Locale/Codes/LangVar_Retired.pm	2015-06-11 23:21:28.569826533 -0400
+@@ -1,5 +1,4 @@
+-package #
+-Locale::Codes::LangVar_Retired;
++package Locale::Codes::LangVar_Retired;
+ 
+ # This file was automatically generated.  Any changes to this file will
+ # be lost the next time 'deprecate_codes' is run.
+diff -Naur a/cpan/Locale-Codes/lib/Locale/Codes/Script_Codes.pm b/cpan/Locale-Codes/lib/Locale/Codes/Script_Codes.pm
+--- a/cpan/Locale-Codes/lib/Locale/Codes/Script_Codes.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/cpan/Locale-Codes/lib/Locale/Codes/Script_Codes.pm	2015-06-11 23:21:28.579826535 -0400
+@@ -1,5 +1,4 @@
+-package #
+-Locale::Codes::Script_Codes;
++package Locale::Codes::Script_Codes;
+ 
+ # This file was automatically generated.  Any changes to this file will
+ # be lost the next time 'harvest_data' is run.
+diff -Naur a/cpan/Locale-Codes/lib/Locale/Codes/Script_Retired.pm b/cpan/Locale-Codes/lib/Locale/Codes/Script_Retired.pm
+--- a/cpan/Locale-Codes/lib/Locale/Codes/Script_Retired.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/cpan/Locale-Codes/lib/Locale/Codes/Script_Retired.pm	2015-06-11 23:21:28.583826539 -0400
+@@ -1,5 +1,4 @@
+-package #
+-Locale::Codes::Script_Retired;
++package Locale::Codes::Script_Retired;
+ 
+ # This file was automatically generated.  Any changes to this file will
+ # be lost the next time 'deprecate_codes' is run.
+diff -Naur a/cpan/Win32API-File/ExtUtils/Myconst2perl.pm b/cpan/Win32API-File/ExtUtils/Myconst2perl.pm
+--- a/cpan/Win32API-File/ExtUtils/Myconst2perl.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/cpan/Win32API-File/ExtUtils/Myconst2perl.pm	2015-06-11 23:21:28.748826501 -0400
+@@ -1,8 +1,7 @@
+ # This should eventually become part of MakeMaker as ExtUtils::Mkconst2perl.
+ # Documentation for this is very skimpy at this point.  Full documentation
+ # will be added to ExtUtils::Mkconst2perl when it is created.
+-package # Hide from PAUSE
+-         ExtUtils::Myconst2perl;
++package ExtUtils::Myconst2perl;
+ 
+ use strict;
+ use Config;
+diff -Naur a/dist/ExtUtils-ParseXS/t/lib/ExtUtils/Typemaps/Test.pm b/dist/ExtUtils-ParseXS/t/lib/ExtUtils/Typemaps/Test.pm
+--- a/dist/ExtUtils-ParseXS/t/lib/ExtUtils/Typemaps/Test.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/dist/ExtUtils-ParseXS/t/lib/ExtUtils/Typemaps/Test.pm	2015-06-11 23:21:28.901826538 -0400
+@@ -1,5 +1,4 @@
+-package # hide from indexers
+-  ExtUtils::Typemaps::Test;
++package ExtUtils::Typemaps::Test;
+ use strict;
+ use warnings;
+ require ExtUtils::Typemaps;
+diff -Naur a/dist/ExtUtils-ParseXS/t/lib/TypemapTest/Foo.pm b/dist/ExtUtils-ParseXS/t/lib/TypemapTest/Foo.pm
+--- a/dist/ExtUtils-ParseXS/t/lib/TypemapTest/Foo.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/dist/ExtUtils-ParseXS/t/lib/TypemapTest/Foo.pm	2015-06-11 23:21:28.901826538 -0400
+@@ -1,5 +1,4 @@
+-package # hide from indexers
+-  TypemapTest::Foo;
++package TypemapTest::Foo;
+ use strict;
+ use warnings;
+ require ExtUtils::Typemaps;
+diff -Naur a/ext/mro/mro.pm b/ext/mro/mro.pm
+--- a/ext/mro/mro.pm	2015-05-13 16:19:29.000000000 -0400
++++ b/ext/mro/mro.pm	2015-06-11 23:21:28.367826535 -0400
+@@ -18,8 +18,7 @@
+     mro::set_mro(scalar(caller), $_[1]) if $_[1];
+ }
+ 
+-package # hide me from PAUSE
+-    next;
++package next;
+ 
+ sub can { mro::_nextcan($_[0], 0) }
+ 
+@@ -28,8 +27,7 @@
+     goto &$method;
+ }
+ 
+-package # hide me from PAUSE
+-    maybe::next;
++package maybe::next;
+ 
+ sub method {
+     my $method = mro::_nextcan($_[0], 0);
