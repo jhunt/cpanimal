@@ -612,7 +612,7 @@ sub build
 	build_all @$requires;
 
 	step "installing RPM package";
-	runlog qq($SUDO rpm -ivH RPMS/x86_64/$tokens{RPMFILE});
+	runlog qq($SUDO rpm -U RPMS/x86_64/$tokens{RPMFILE});
 	if ($? != 0) {
 		# check the log for perl(...) deps
 		unless (check_log(qr/is already installed/)) {
@@ -622,7 +622,7 @@ sub build
 
 			# try the install again
 			step "retrying RPM package installation";
-			runlog qq($SUDO rpm -ivH RPMS/x86_64/$tokens{RPMFILE});
+			runlog qq($SUDO rpm -U RPMS/x86_64/$tokens{RPMFILE});
 			if ($? != 0) {
 				dump_log;
 				die "Failed\n";
