@@ -281,7 +281,7 @@ sub module_arch
 	$tar->read($archive);
 
 	for ($tar->list_files()) {
-		return $ARCH if m/\.xs$/;
+		return $ARCH if m/\.(xs|c|cpp)$/;
 	}
 	return 'noarch';
 }
@@ -621,7 +621,7 @@ sub build
 
 	my %tokens = specfile("$dist.spec", $rel, $requires, $build_requires);
 	step "wrote spec file for $name to $OPTIONS{root}/SPECS/$dist.spec";
-	my $arch = module_arch("SOURCE/$tokens{SOURCE}");
+	my $arch = module_arch("SOURCES/$tokens{SOURCE}");
 
 	step "building RPM package";
 	runlog qq(rpmbuild -ba -D "_topdir $OPTIONS{root}" $dist.spec </dev/null);
