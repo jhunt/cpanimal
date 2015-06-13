@@ -751,23 +751,27 @@ Source0:        {{DISTNAME}}-%{version}.tar.gz
 cat > %{__new_perl_provides} <<END_PROVIDES
 #!/bin/sh
 # drop bad 'Provides' symbols
-%{__perl_provides} $* | tee /tmp/out |\
+%{__perl_provides} $* |\
+  sed -e 's/\s+$//' |\
 {{OVERRIDE_SKIP_PROVIDES}}
   cat
 END_PROVIDES
 chmod +x %{__new_perl_provides}
 %define __perl_provides %{__new_perl_provides}
+%define __find_provides %{__new_perl_provides}
 
 %define __new_perl_requires %{_builddir}/cpan-perl-requires
 cat > %{__new_perl_requires} <<END_REQUIRES
 #!/bin/sh
 # drop bad 'Requires' symbols
-%{__perl_requires} $* | tee out2 |\
+%{__perl_requires} $* |\
+  sed -e 's/\s+$//' |\
 {{OVERRIDE_SKIP_REQUIRES}}
   cat
 END_REQUIRES
 chmod +x %{__new_perl_requires}
 %define __perl_requires %{__new_perl_requires}
+%define __find_requires %{__new_perl_requires}
 
 
 ##########################################################
