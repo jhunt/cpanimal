@@ -759,8 +759,10 @@ sub build
 	$HAVE{$name} = 1;
 	delete $SEEN{$name};
 }
+if (!@ARGV) {
+	exit usage();
 
-if ($ARGV[0] eq 'spec') {
+} elsif ($ARGV[0] eq 'spec') {
 	shift @ARGV;
 	setup;
 	spec $_ for @ARGV;
