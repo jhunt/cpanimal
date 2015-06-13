@@ -723,7 +723,7 @@ if ($ARGV[0] eq 'spec') {
 		print "\n\n";
 	}
 
-} elsif ($ARGV[0] eq 'deps') {
+} elsif ($ARGV[0] eq 'deptree') {
 	shift @ARGV;
 	$QUIET = 1;
 	deptree $_ for @ARGV;
