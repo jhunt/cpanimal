@@ -289,7 +289,6 @@ sub module_arch
 sub specfile
 {
 	my ($file, $rel, $requires, $build_requires) = @_;
-	$file = "$OPTIONS{root}/$file";
 	open my $spec, ">", $file
 		or die "Failed to open $file for writing: $!\n";
 
@@ -505,8 +504,9 @@ sub spec
 	my $dist = $rel->{distribution};
 	my ($requires ,$build_requires) = deps($rel);
 
-	specfile("SPECS/$dist.spec", $rel, $requires, $build_requires);
-	step "wrote spec file for $name to $OPTIONS{root}/SPECS/$dist.spec";
+	my $specfile = "$OPTIONS{root}/SPECS/$dist.spec";
+	specfile($specfile, $rel, $requires, $build_requires);
+	step "wrote spec file for $name to $specfile";
 }
 
 sub source
@@ -619,12 +619,13 @@ sub build
 		}
 	}
 
-	my %tokens = specfile("$dist.spec", $rel, $requires, $build_requires);
-	step "wrote spec file for $name to $OPTIONS{root}/SPECS/$dist.spec";
+	my $specfile = "$OPTIONS{root}/SPECS/$dist.spec";
+	my %tokens = specfile($specfile, $rel, $requires, $build_requires);
+	step "wrote spec file for $name to $specfile";
 	my $arch = module_arch("SOURCES/$tokens{SOURCE}");
 
 	step "building RPM package";
-	runlog qq(rpmbuild -ba -D "_topdir $OPTIONS{root}" $dist.spec </dev/null);
+	runlog qq(rpmbuild -ba -D "_topdir $OPTIONS{root}" $specfile </dev/null);
 	if ($? != 0) {
 		if (!check_log(qw/perl\(.*?\) is needed by/)) {
 			dump_log;
@@ -637,7 +638,7 @@ sub build
 
 		# try the build again
 		step "retrying RPM package build";
-		runlog qq(rpmbuild -ba -D "_topdir $OPTIONS{root}" $dist.spec </dev/null);
+		runlog qq(rpmbuild -ba -D "_topdir $OPTIONS{root}" $specfile </dev/null);
 		if ($? != 0) {
 			dump_log;
 			die "Failed.\n";
