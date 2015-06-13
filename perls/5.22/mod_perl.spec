@@ -9,7 +9,8 @@ Group:          Development/Libraries
 BuildRoot:      %{_tmppath}/%{name}-root
 Source0:        mod_perl-%{version}.tar.gz
 
-
+BuildRequires:  gcc
+BuildRequires:  httpd-devel
 
 
 %description
