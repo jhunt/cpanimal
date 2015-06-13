@@ -32,6 +32,10 @@ Just need the archive?
 
     $ cpanimal source My::Favorite::Module
 
+Curious about the dependency tree?
+
+    $ cpanimal deptree Dancer
+
 Ready to jump in with both feet?
 
     $ cpanimal build My::Favorite::Module

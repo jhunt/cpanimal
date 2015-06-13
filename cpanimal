@@ -178,14 +178,15 @@ sub runlog
 	qx($command >$OPTIONS{root}/.lastlog 2>&1);
 }
 
+my $QUIET = 0;
 sub stage
 {
-	print "$C{cyan}####   $_[0]   ####$C{x}\n";
+	print "$C{cyan}####   $_[0]   ####$C{x}\n" unless $QUIET;
 }
 
 sub step
 {
-	print "$C{green}>> $_[0]$C{x}\n"
+	print "$C{green}>> $_[0]$C{x}\n" unless $QUIET;
 }
 
 sub lookup
@@ -562,6 +563,29 @@ EOF
 	print "\n";
 }
 
+sub deptree
+{
+	my ($name, $prefix) = @_;
+	$prefix ||= '';
+	return if $HAVE{$name};
+	$HAVE{$name} = 1;
+
+	my $rel = lookup($name)
+		or die "Module '$name' not found on CPAN...\n";
+	my $dist = $rel->{distribution};
+	return if $dist =~ m/^perl$/;
+	my ($requires ,$build_requires) = deps($rel);
+
+	for (@$build_requires) {
+		print "$prefix$name $_->{phase} $_->{relationship} $_->{module}\n";
+		deptree($_->{module}, "$prefix  ");
+	}
+	for (@$requires) {
+		print "$prefix$name $_->{phase} $_->{relationship} $_->{module}\n";
+		deptree($_->{module}, "$prefix  ");
+	}
+}
+
 sub arch
 {
 	my ($name) = @_;
@@ -698,6 +722,13 @@ if ($ARGV[0] eq 'spec') {
 		print Dumper($_ => $rel);
 		print "\n\n";
 	}
+
+} elsif ($ARGV[0] eq 'deps') {
+	shift @ARGV;
+	$QUIET = 1;
+	deptree $_ for @ARGV;
+	print "\n\n";
+	print "Total modules: ".scalar(keys %HAVE)."\n";
 
 } elsif ($ARGV[0] eq 'arch') {
 	shift @ARGV;
