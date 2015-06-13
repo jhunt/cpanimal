@@ -337,6 +337,8 @@ sub specfile
 		OVERRIDE_ADD_BUILDREQUIRES => override_adds($rel->{distribution},
 			'build_requires', $overrides),
 
+		OVERRIDE_SKIP_FILES => override_skip_files($rel->{distribution},
+			$overrides),
 		OVERRIDE_SKIP_REQUIRES => override_skips($rel->{distribution},
 			'requires', $overrides),
 		OVERRIDE_SKIP_PROVIDES => override_skips($rel->{distribution},
@@ -452,13 +454,34 @@ sub parse_overrides_io
 
 		$action =~ m/^(skip|add)$/
 			or die "Unrecognized action '$action'\n(you want 'skip' or 'add')\n";
-		$key =~ m/^(build_requires|requires|provides)$/
-			or die "Unrecognized key '$key'\n(you want 'requires', 'build_requires' or 'provides')\n";
+		$key =~ m/^(build_requires|requires|provides|files)$/
+			or die "Unrecognized key '$key'\n(you want 'requires', 'build_requires', 'provides' or 'files')\n";
+
+		die "'add files' is not supported at this time.\n"
+			if $action eq 'add' and $key eq 'files';
 
 		$over{$pkg}{$action}{$key} ||= [];
 		push @{ $over{$pkg}{$action}{$key} }, @values;
 	}
 	return \%over;
+}
+
+sub override_skip_files
+{
+	my ($dist, $overrides) = @_;
+	my @l;
+	for my $top ('*', $dist) {
+		next unless exists $overrides->{$top}{skip}{files};
+
+		for my $skip (@{ $overrides->{$top}{skip}{files} }) {
+			if ($skip =~ m{^/(.*)/$}) {
+				push @l, "find \$RPM_BUILD_ROOT -regextype posix-extended -regex '.*$1.*' -exec rm -f {} \\;";
+			} else {
+				push @l, "find \$RPM_BUILD_ROOT -path $skip -exec rm -f {} \\;";
+			}
+		}
+	}
+	join("\n", @l);
 }
 
 sub override_skips
@@ -849,6 +872,8 @@ else
 fi
 
 [ -x /usr/lib/rpm/brp-compress ] && /usr/lib/rpm/brp-compress
+
+{{OVERRIDE_SKIP_FILES}}
 
 find $RPM_BUILD_ROOT \( -name perllocal.pod -o -name .packlist \) -exec rm -v {} \;
 find $RPM_BUILD_ROOT/usr -type f -print | \
