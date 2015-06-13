@@ -537,7 +537,7 @@ sub info
 ============================== $name
 $rel->{distribution} $rel->{version} by $rel->{author} 
   $rel->{download_url}
-  $rel->{status} / $rel->{maturity} (tests: $rel->{tests}{pass}/$rel->{tests}{fail}/$rel->{tests}{unknown}/$rel->{tests}{unknown}  pas/fail/unknown/na)
+  $rel->{status} / $rel->{maturity} (tests: $rel->{tests}{pass}/$rel->{tests}{fail}/$rel->{tests}{unknown}/$rel->{tests}{unknown}  pass/fail/unknown/na)
 
 $rel->{abstract}
 
