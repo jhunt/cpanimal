@@ -365,10 +365,11 @@ sub check_log
 {
 	my ($re) = @_;
 	open my $fh, "<", "$OPTIONS{root}/.lastlog" or return undef;
-	while (<$fh>) {
-		close $fh and return 1 if m/$re/;
+	while (local $_ = <$fh>) {
+		next unless m/$re/;
+		close $fh; return 1;
 	}
-	close $fh and return undef;
+	close $fh; return undef;
 }
 
 sub grep_log
