@@ -707,13 +707,13 @@ if ($ARGV[0] eq 'spec') {
 } elsif ($ARGV[0] eq 'build') {
 	shift @ARGV;
 	setup;
-	build 'Module::Runtime'; # my deps
-	build $_ for @ARGV;
+	build_all 'Module::Runtime'; # my deps
+	build_all @ARGV;
 
 } elsif ($ARGV[0]) {
 	setup;
-	build 'Module::Runtime'; # my deps
-	build $_ for @ARGV;
+	build_all 'Module::Runtime'; # my deps
+	build_all @ARGV;
 
 } else {
 	print STDERR "USAGE: $0 (spec|source|info|build) Module::Name\n";
