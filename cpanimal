@@ -271,6 +271,7 @@ sub deps
 	my (@requires, @build_requires);
 	for my $dep (@{ $rel->{dependency} }) {
 		next if $dep->{phase}        eq 'develop';
+		next if $dep->{phase}        eq 'test' and !$OPTIONS{tests};
 		next if $dep->{relationship} ne 'requires';
 
 		if ($dep->{phase} =~ m/^(configure|test|build)/) {
@@ -380,6 +381,7 @@ sub specfile
 		BUILDREQUIRES  => reqs('Build', $build_requires),
 		BUILDARCH      => $arch,
 		ARCHIVE_ROOT   => $archive_root,
+		RUN_TESTS      => $OPTIONS{tests},
 
 		OVERRIDE_ADD_REQUIRES      => override_adds($rel->{distribution},
 			'requires', $overrides),
@@ -912,7 +914,20 @@ fi
 
 ##########################################################
 %check
-#make test
+%define __cpanimal_run_tests {{RUN_TESTS}}
+%if %{__cpanimal_run_tests}
+if [[ -f Makefile.PL ]]; then
+  make test
+
+elif [[ -f Build.PL ]]; then
+  ./Build test
+
+else
+  echo "Error: No Makefile.PL or Build.PL found!!"
+  exit 1
+
+fi
+%endif
 
 
 ##########################################################
