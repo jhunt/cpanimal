@@ -129,7 +129,34 @@ my %OPTIONS = (
 	tests     => 1,
 	prefix    => 'perl',
 	overrides => '/etc/cpanimal/overides.conf',
+	debug     => $ENV{DEBUG},
 );
+sub debug
+{
+	print "$C{purple}+++ $_[0]$C{x}\n" if $OPTIONS{debug};
+}
+sub rcfiles
+{
+	for my $file (@_) {
+		debug "trying rc file $file";
+		next unless -f $file;
+		debug "parsing rc file $file";
+		open my $fh, "<", $file or die "Failed to open $file: $!\n";
+		while (<$fh>) {
+			chomp;
+			s/\s*#.*//;
+			next unless m/^(\S+)\s+(.*)/;
+			if (exists $OPTIONS{$1}) {
+				$OPTIONS{$1} = $2;
+				next;
+			}
+			warn "Ignoring unknown configuration option '$1'\n";
+		}
+		close $fh;
+	}
+}
+rcfiles("$ENV{HOME}/.cpanimalrc", "/etc/cpanimal/cpanimalrc");
+$OPTIONS{root} =~ s!^~/!$ENV{HOME}/!;
 GetOptions(\%OPTIONS, qw/
 	help|h|?
 	debug|D
@@ -148,6 +175,7 @@ if (defined $OPTIONS{template}) {
 	close $tpl;
 } else {
 	$SPEC = do { local $/; <DATA> };
+	$OPTIONS{template} = '<embedded>';
 }
 
 my $PWD = cwd;
@@ -188,11 +216,6 @@ sub stage
 sub step
 {
 	print "$C{green}>> $_[0]$C{x}\n" unless $QUIET;
-}
-
-sub debug
-{
-	print "$C{purple}+++ $_[0]$C{x}\n" if $OPTIONS{debug};
 }
 
 sub lookup
@@ -318,14 +341,14 @@ sub specfile
 
 	my $url = $rel->{download_url};
 	(my $tarball = $url) =~ s!.*/!!;
-	if (!-f "SOURCES/$tarball") {
+	if (!-f "$OPTIONS{root}/SOURCES/$tarball") {
 		step "downloading $url";
-		run qq(curl $url > SOURCES/$tarball);
+		run qq(curl $url > $OPTIONS{root}/SOURCES/$tarball);
 		$? == 0 or die "Failed.\n";
 	} else {
 		step "using pre-existing $tarball";
 	}
-	my $arch = module_arch("SOURCES/$tarball");
+	my $arch = module_arch("$OPTIONS{root}/SOURCES/$tarball");
 
 	my $PREFIX = $OPTIONS{prefix};
 	$PREFIX = "$PREFIX-" unless $PREFIX =~ m/-$/;
@@ -333,7 +356,7 @@ sub specfile
 
 	my $relname = $rel->{name};
 	my $version = $relname; $version =~ s/.*-//;
-	my $archive_root = archive_root_dir("SOURCES/$tarball",
+	my $archive_root = archive_root_dir("$OPTIONS{root}/SOURCES/$tarball",
 		$relname, $rel->{distribution});
 
 	my $overrides = parse_overrides_files(
@@ -438,6 +461,7 @@ sub have_module
 
 sub setup
 {
+	qx(mkdir -p $OPTIONS{root});
 	qx(mkdir -p $OPTIONS{root}/$_)
 		for qw/ RPMS SRPMS SOURCES SPECS BUILD .cache /
 }
@@ -654,14 +678,14 @@ sub arch
 
 	my $url = $rel->{download_url};
 	(my $file = $url) =~ s!.*/!!;
-	if (! -f "SOURCES/$file") {
+	if (! -f "$OPTIONS{root}/SOURCES/$file") {
 		step "downloading $url";
 		run qq(curl $url > SOURCES/$file);
 		print "\n";
 		$? == 0 or die "Failed.\n";
 	}
 
-	my $arch = module_arch("SOURCES/$file");
+	my $arch = module_arch("$OPTIONS{root}/SOURCES/$file");
 	print "$name is $arch\n";
 }
 
@@ -706,7 +730,7 @@ sub build
 	my $specfile = "$OPTIONS{root}/SPECS/$dist.spec";
 	my %tokens = specfile($specfile, $rel, $requires, $build_requires);
 	step "wrote spec file for $name to $specfile";
-	my $arch = module_arch("SOURCES/$tokens{SOURCE}");
+	my $arch = module_arch("$OPTIONS{root}/SOURCES/$tokens{SOURCE}");
 
 	step "building RPM package";
 	runlog qq(rpmbuild -ba -D "_topdir $OPTIONS{root}" $specfile </dev/null);
@@ -761,6 +785,9 @@ sub build
 }
 if (!@ARGV) {
 	exit usage();
+
+} elsif ($ARGV[0] eq 'config') {
+	printf "%10s: %s\n", $_, $OPTIONS{$_} for sort keys %OPTIONS;
 
 } elsif ($ARGV[0] eq 'spec') {
 	shift @ARGV;

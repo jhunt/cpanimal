@@ -1,5 +1,4 @@
 TODO
 
 - Automate the "PAUSE" patch from 5.22 to apply to all modules
-- Parse .cpanrc for options
 - Handle Conflicts
