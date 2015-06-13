@@ -607,7 +607,7 @@ sub source
 	my $url = $rel->{download_url};
 	(my $file = $url) =~ s!.*/!!;
 	step "downloading $url";
-	run qq(curl $url > SOURCES/$file);
+	run qq(curl $url > $OPTIONS{root}/SOURCES/$file);
 	print "\n";
 	$? == 0 or die "Failed.\n";
 }
@@ -682,7 +682,7 @@ sub arch
 	(my $file = $url) =~ s!.*/!!;
 	if (! -f "$OPTIONS{root}/SOURCES/$file") {
 		step "downloading $url";
-		run qq(curl $url > SOURCES/$file);
+		run qq(curl $url > $OPTIONS{root}/SOURCES/$file);
 		print "\n";
 		$? == 0 or die "Failed.\n";
 	}
