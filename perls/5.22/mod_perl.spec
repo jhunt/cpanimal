@@ -23,7 +23,7 @@ Embed a Perl interpreter in the Apache/2.x HTTP server
 cat > %{__new_perl_provides} <<END_PROVIDES
 #!/bin/sh
 # drop bad 'Provides' symbols
-%{__perl_provides} $* | tee /tmp/out         |\
+%{__perl_provides} $* | sed -e 's/\s+$//'    |\
   sed -e '/^perl(Win32)$/d'                  |\
   sed -e '/^perl(Win32::.*)$/d'              |\
   sed -e '/^perl(Mac)$/d'                    |\
@@ -39,7 +39,7 @@ chmod +x %{__new_perl_provides}
 cat > %{__new_perl_requires} <<END_REQUIRES
 #!/bin/sh
 # drop bad 'Requires' symbols
-%{__perl_requires} $* | tee out2 |\
+%{__perl_requires} $* | sed -e 's/\s+$//'    |\
   sed -e '/^perl(Win32)$/d'                  |\
   sed -e '/^perl(Win32::.*)$/d'              |\
   sed -e '/^perl(Mac)$/d'                    |\
