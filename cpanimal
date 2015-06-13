@@ -922,11 +922,15 @@ chmod +x %{__new_perl_requires}
 ##########################################################
 %build
 if [[ -f Makefile.PL ]]; then
-  CFLAGS="$RPM_OPT_FLAGS" perl Makefile.PL INSTALLDIRS=vendor
+  CFLAGS="$RPM_OPT_FLAGS" \
+  PERL_AUTOINSTALL='--skipdeps' \
+    perl Makefile.PL INSTALLDIRS=vendor
   make
 
 elif [[ -f Build.PL ]]; then
-  CFLAGS="$RPM_OPT_FLAGS" perl Build.PL --installdirs=vendor
+  CFLAGS="$RPM_OPT_FLAGS" \
+  PERL_AUTOINSTALL='--skipdeps' \
+    perl Build.PL --installdirs=vendor
   ./Build
 
 else
