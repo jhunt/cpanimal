@@ -176,6 +176,7 @@ sub runlog
 	my ($command) = @_;
 	print "$C{yellow}+ $command$C{x}\n";
 	qx($command >$OPTIONS{root}/.lastlog 2>&1);
+	dump_log('black') if $OPTIONS{debug};
 }
 
 my $QUIET = 0;
@@ -187,6 +188,11 @@ sub stage
 sub step
 {
 	print "$C{green}>> $_[0]$C{x}\n" unless $QUIET;
+}
+
+sub debug
+{
+	print "$C{purple}+++ $_[0]$C{x}\n" if $OPTIONS{debug};
 }
 
 sub lookup
@@ -355,12 +361,22 @@ sub specfile
 
 sub dump_log
 {
-	print $C{$_[0] || 'red'}; print "-" x 80; print "\n";
-	print qx(cat $OPTIONS{root}/.lastlog);
-	print "-" x 80; print "\n"; print $C{x};
+	open my $log, "<", "$OPTIONS{root}/.lastlog"
+		or return;
+	my $contents = do { local $/; <$log> };
+	close $log;
+
+	if ($contents) {
+		print $C{$_[0] || 'red'}; print "-" x 80; print "\n";
+		print $contents;
+		print "-" x 80; print "\n"; print $C{x};
+	}
 
 	if ($OPTIONS{debug}) {
-		print "have '$_'\n" for sort keys %HAVE;
+		print $C{$_[0] || 'red'};
+		print "  Module state dump:\n";
+		print "  - have '$_'\n" for sort keys %HAVE;
+		print $C{x};
 	}
 }
 
