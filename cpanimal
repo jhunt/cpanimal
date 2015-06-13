@@ -293,6 +293,23 @@ sub module_arch
 	return 'noarch';
 }
 
+sub archive_root_dir
+{
+	my ($archive, @try) = @_;
+	my $tar = Archive::Tar->new;
+	$tar->read($archive);
+
+	debug "determining dist archive root directory...";
+	for (@try) {
+		debug "trying $_";
+		return $_ if $tar->contains_file("$_/") # trailing slash
+		          or $tar->contains_file("$_"); # is optional
+	}
+	debug "is it one of these?";
+	debug "  $_" for grep { !m{/.+/} } $tar->list_files;
+	die "Unable to determine root directory for $try[0] archive $archive\n";
+}
+
 sub specfile
 {
 	my ($file, $rel, $requires, $build_requires) = @_;
@@ -316,6 +333,8 @@ sub specfile
 
 	my $relname = $rel->{name};
 	my $version = $relname; $version =~ s/.*-//;
+	my $archive_root = archive_root_dir("SOURCES/$tarball",
+		$relname, $rel->{distribution});
 
 	my $overrides = parse_overrides_files(
 		$OPTIONS{overrides},
@@ -337,6 +356,7 @@ sub specfile
 		REQUIRES       => reqs($requires),
 		BUILDREQUIRES  => reqs('Build', $build_requires),
 		BUILDARCH      => $arch,
+		ARCHIVE_ROOT   => $archive_root,
 
 		OVERRIDE_ADD_REQUIRES      => override_adds($rel->{distribution},
 			'requires', $overrides),
@@ -815,7 +835,7 @@ Source0:        {{DISTNAME}}-%{version}.tar.gz
 
 ##########################################################
 %prep
-%setup -q -n {{DISTNAME}}-%{version}
+%setup -q -n {{ARCHIVE_ROOT}}
 
 %define __new_perl_provides %{_builddir}/cpan-perl-provides
 cat > %{__new_perl_provides} <<END_PROVIDES
