@@ -736,7 +736,7 @@ sub build
 	die "refusing to build '$dist'!\n" if $dist =~ m/^perl$/;
 	my ($requires ,$build_requires) = deps($rel);
 
-	for my $dep (@$build_requires) {
+	for my $dep (@$build_requires, @$requires) {
 		print "   $C{green}$name $dep->{relationship} $dep->{module} (for $dep->{phase})$C{x}\n";
 		if (!have_module($dep->{module}, $dep->{version})) {
 			die "Module dependency loop detected; I have no idea what to do now...\n"
