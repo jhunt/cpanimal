@@ -342,8 +342,11 @@ sub archive_root_dir
 	debug "determining dist archive root directory...";
 	for (@try) {
 		debug "trying $_";
-		return $_ if $tar->contains_file("$_/") # trailing slash
-		          or $tar->contains_file("$_"); # is optional
+		return $_ if $tar->contains_file("$_")
+		          or $tar->contains_file("$_/")
+		          or $tar->contains_file("$_/MANIFEST")
+		          or $tar->contains_file("$_/Makefile.PL")
+		          or $tar->contains_file("$_/Build.PL");
 	}
 	debug "is it one of these?";
 	debug "  $_" for grep { !m{/.+/} } $tar->list_files;
