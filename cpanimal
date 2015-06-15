@@ -878,7 +878,7 @@ Group:          Development/Libraries
 
 BuildRoot:      %{_tmppath}/%{name}-root
 BuildArch:      {{BUILDARCH}}
-Source0:        {{DISTNAME}}-%{version}.tar.gz
+Source0:        {{URL}}
 
 {{BUILDREQUIRES}}
 {{OVERRIDE_ADD_BUILDREQUIRES}}
