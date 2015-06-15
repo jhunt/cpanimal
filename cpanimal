@@ -400,7 +400,8 @@ sub specfile
 		BUILDREQUIRES  => reqs('Build', $build_requires),
 		BUILDARCH      => $arch,
 		ARCHIVE_ROOT   => $archive_root,
-		RUN_TESTS      => $OPTIONS{tests},
+		RUN_TESTS      => override_tests($rel->{distribution}, $OPTIONS{tests}, $overrides),
+		PREFER         => override_prefer($rel->{distribution}, $overrides),
 
 		PATCHED_PERL_PROVIDES => $PERL_PROVIDES,
 		PATCHED_PERL_REQUIRES => $PERL_REQUIRES,
@@ -534,18 +535,27 @@ sub parse_overrides_io
 			last if $t eq ';';
 			push @values, $t;
 		}
-		@values or die "Unexpected end of input\n";
 
-		$action =~ m/^(skip|add)$/
-			or die "Unrecognized action '$action'\n(you want 'skip' or 'add')\n";
-		$key =~ m/^(build_requires|requires|provides|files)$/
-			or die "Unrecognized key '$key'\n(you want 'requires', 'build_requires', 'provides' or 'files')\n";
+		if ($action =~ m/^(skip|run)$/ and $key eq 'tests') {
+			$over{$pkg}{run_tests} = ($action eq 'run' ? 1 : 0);
 
-		die "'add files' is not supported at this time.\n"
-			if $action eq 'add' and $key eq 'files';
+		} elsif ($action =~ m/^(skip|add)$/) {
+			@values or die "Unexpected end of input\n";
+			$key =~ m/^(build_requires|requires|provides|files)$/
+				or die "Unrecognized key '$key'\n(you want 'requires', 'build_requires', 'provides' or 'files')\n";
 
-		$over{$pkg}{$action}{$key} ||= [];
-		push @{ $over{$pkg}{$action}{$key} }, @values;
+			die "'add files' is not supported at this time.\n"
+				if $action eq 'add' and $key eq 'files';
+
+			$over{$pkg}{$action}{$key} ||= [];
+			push @{ $over{$pkg}{$action}{$key} }, @values;
+
+		} elsif ($action eq 'prefer') {
+			$over{$pkg}{$action} = $key;
+
+		} else {
+			die "Unrecognized action '$action'\n(you want 'skip', 'add' or 'prefer')\n";
+		}
 	}
 	return \%over;
 }
@@ -601,6 +611,26 @@ sub override_adds
 		push @l, "$tag$_\n" for @{ $overrides->{$top}{add}{$type} };
 	}
 	join('', @l);
+}
+
+sub override_prefer
+{
+	my ($dist, $overrides) = @_;
+	for my $top (reverse '*', $dist) {
+		return $overrides->{$top}{prefer}
+			if exists $overrides->{$top}{prefer};
+	}
+	return 'Makefile.PL';
+}
+
+sub override_tests
+{
+	my ($dist, $default, $overrides) = @_;
+	for my $top (reverse '*', $dist) {
+		return $overrides->{$top}{run_tests}
+			if exists $overrides->{$top}{run_tests};
+	}
+	return $default;
 }
 
 # }}}
@@ -934,22 +964,45 @@ chmod +x %{__new_perl_requires}
 
 ##########################################################
 %build
-if [[ -f Makefile.PL ]]; then
-  CFLAGS="$RPM_OPT_FLAGS" \
-  PERL_AUTOINSTALL='--skipdeps' \
-    perl Makefile.PL INSTALLDIRS=vendor
-  make
+if [[ "x{{PREFER}}" == "xMakefile.PL" ]]; then
+  if [[ -f Makefile.PL ]]; then
+    CFLAGS="$RPM_OPT_FLAGS" \
+    PERL_AUTOINSTALL='--skipdeps' \
+      perl Makefile.PL INSTALLDIRS=vendor
+    make
 
-elif [[ -f Build.PL ]]; then
-  CFLAGS="$RPM_OPT_FLAGS" \
-  PERL_AUTOINSTALL='--skipdeps' \
-    perl Build.PL --installdirs=vendor
-  ./Build
+  elif [[ -f Build.PL ]]; then
+    CFLAGS="$RPM_OPT_FLAGS" \
+    PERL_AUTOINSTALL='--skipdeps' \
+      perl Build.PL
+    ./Build
+
+  else
+    echo "Error: No Makefile.PL or Build.PL found!!"
+    exit 1
+  fi
+
+elif [[ "x{{PREFER}}" == "xBuild.PL" ]]; then
+  if [[ -f Build.PL ]]; then
+    CFLAGS="$RPM_OPT_FLAGS" \
+    PERL_AUTOINSTALL='--skipdeps' \
+      perl Build.PL
+    ./Build
+
+  elif [[ -f Makefile.PL ]]; then
+    CFLAGS="$RPM_OPT_FLAGS" \
+    PERL_AUTOINSTALL='--skipdeps' \
+      perl Makefile.PL INSTALLDIRS=vendor
+    make
+
+  else
+    echo "Error: No Makefile.PL or Build.PL found!!"
+    exit 1
+  fi
 
 else
-  echo "Error: No Makefile.PL or Build.PL found!!"
+  echo "Error: preferred build system '{{PREFER}}' unrecognized!"
   exit 1
-
 fi
 
 
@@ -957,16 +1010,33 @@ fi
 %check
 %define __cpanimal_run_tests {{RUN_TESTS}}
 %if %{__cpanimal_run_tests}
-if [[ -f Makefile.PL ]]; then
-  make test
+if [[ "x{{PREFER}}" == "xMakefile.PL" ]]; then
+  if [[ -f Makefile.PL ]]; then
+    make test
 
-elif [[ -f Build.PL ]]; then
-  ./Build test
+  elif [[ -f Build.PL ]]; then
+    ./Build test
+
+  else
+    echo "Error: No Makefile.PL or Build.PL found!!"
+    exit 1
+  fi
+
+elif [[ "x{{PREFER}}" == "xBuild.PL" ]]; then
+  if [[ -f Build.PL ]]; then
+    ./Build test
+
+  elif [[ -f Makefile.PL ]]; then
+    make test
+
+  else
+    echo "Error: No Makefile.PL or Build.PL found!!"
+    exit 1
+  fi
 
 else
-  echo "Error: No Makefile.PL or Build.PL found!!"
+  echo "Error: preferred build system '{{PREFER}}' unrecognized!"
   exit 1
-
 fi
 %endif
 
@@ -980,16 +1050,33 @@ rm -rf $RPM_BUILD_ROOT
 %install
 rm -rf $RPM_BUILD_ROOT
 
-if [[ -f Makefile.PL ]]; then
-  make install DESTDIR=$RPM_BUILD_ROOT
+if [[ "x{{PREFER}}" == "xMakefile.PL" ]]; then
+  if [[ -f Makefile.PL ]]; then
+    make install DESTDIR=$RPM_BUILD_ROOT
 
-elif [[ -f Build.PL ]]; then
-  ./Build install --destdir=$RPM_BUILD_ROOT
+  elif [[ -f Build.PL ]]; then
+    ./Build install --installdirs=vendor --destdir=$RPM_BUILD_ROOT
+
+  else
+    echo "Error: No Makefile.PL or Build.PL found!!"
+    exit 1
+  fi
+
+elif [[ "x{{PREFER}}" == "xBuild.PL" ]]; then
+  if [[ -f Build.PL ]]; then
+    ./Build install --installdirs=vendor --destdir=$RPM_BUILD_ROOT
+
+  elif [[ -f Makefile.PL ]]; then
+    make install DESTDIR=$RPM_BUILD_ROOT
+
+  else
+    echo "Error: No Makefile.PL or Build.PL found!!"
+    exit 1
+  fi
 
 else
-  echo "Error: No Makefile.PL or Build.PL found!!"
+  echo "Error: preferred build system '{{PREFER}}' unrecognized!"
   exit 1
-
 fi
 
 [ -x /usr/lib/rpm/brp-compress ] && /usr/lib/rpm/brp-compress
