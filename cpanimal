@@ -785,7 +785,7 @@ sub build
 	step "building RPM package";
 	runlog qq(rpmbuild -ba -D "_topdir $OPTIONS{root}" $specfile </dev/null);
 	if ($? != 0) {
-		if (!check_log(qw/perl\(.*?\) .*is needed by/)) {
+		if (!check_log(qw/ is needed by/)) {
 			dump_log;
 			die "$name Failed.\n";
 		}
@@ -793,6 +793,10 @@ sub build
 
 		step "building missing build dependencies";
 		build_all grep_log(qr/perl\((.*?)\) .*is needed by/);
+		for (grep_log(qr/^\s*(\S+)\s.*is needed by/)) {
+			next if m/^perl\(/;
+			runlog qq($SUDO yum install -y $_);
+		}
 
 		# try the build again
 		step "retrying RPM package build";
