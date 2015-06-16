@@ -603,7 +603,7 @@ sub overrides
 		join "\n", map { 'find $RPM_BUILD_ROOT '.
 				( m{^/(.*)/$}
 				? "-regextype posix-extended -regex '.*$1.*'"
-				: "-path '$1'" ). ' -exec rm -f {}';
+				: "-path '$1'" ). ' -exec rm -f {} \\;';
 			} @{ $combined->{skip}{files} };
 
 	$o{PREFER}    = $combined->{prefer};
