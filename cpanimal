@@ -234,6 +234,14 @@ sub bail
 	die $msg."\n(re-run with DEBUG=1 in your environment for diagnostics)\n";
 }
 
+sub _hms
+{
+	my ($h, $m, $s) = (0, 0, $_[0]);
+	$m = int($s / 60); $s %= 60;
+	$h = int($m / 60); $m %= 60;
+	return sprintf("%02i:%02i.%02i", $h, $m, $s);
+}
+
 sub run
 {
 	my ($command) = @_;
@@ -862,6 +870,7 @@ sub build
 	$HAVE{$name} = 1;
 	delete $SEEN{$name};
 }
+
 if (!@ARGV) {
 	exit usage();
 
@@ -902,16 +911,13 @@ if (!@ARGV) {
 	setup;
 	arch $_ for @ARGV;
 
-} elsif ($ARGV[0] eq 'build') {
-	shift @ARGV;
+} elsif ($ARGV[0] eq 'build' or $ARGV[0]) {
+	shift @ARGV if $ARGV[0] eq 'build';
+	my $start = time;
 	setup;
 	build_all 'Module::Runtime'; # my deps
 	build_all @ARGV;
-
-} elsif ($ARGV[0]) {
-	setup;
-	build_all 'Module::Runtime'; # my deps
-	build_all @ARGV;
+	print "Total build time: "._hms(time - $start)."\n";
 
 } else {
 	print STDERR "USAGE: $0 (spec|source|info|build) Module::Name\n";
