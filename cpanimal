@@ -399,23 +399,10 @@ sub specfile
 		BUILDREQUIRES  => reqs('Build', $build_requires),
 		BUILDARCH      => $arch,
 		ARCHIVE_ROOT   => $archive_root,
-		RUN_TESTS      => override_tests($rel->{distribution}, $OPTIONS{tests}, $overrides),
-		PREFER         => override_prefer($rel->{distribution}, $overrides),
-
 		PATCHED_PERL_PROVIDES => $PERL_PROVIDES,
 		PATCHED_PERL_REQUIRES => $PERL_REQUIRES,
 
-		OVERRIDE_ADD_REQUIRES      => override_adds($rel->{distribution},
-			'requires', $overrides),
-		OVERRIDE_ADD_BUILDREQUIRES => override_adds($rel->{distribution},
-			'build_requires', $overrides),
-
-		OVERRIDE_SKIP_FILES => override_skip_files($rel->{distribution},
-			$overrides),
-		OVERRIDE_SKIP_REQUIRES => override_skips($rel->{distribution},
-			'requires', $overrides),
-		OVERRIDE_SKIP_PROVIDES => override_skips($rel->{distribution},
-			'provides', $overrides),
+		overrides($rel, $overrides),
 	);
 	my $x = "$SPEC";
 	$x =~ s/\{\{$_\}\}/$tokens{$_}/eg for keys %tokens;
@@ -527,18 +514,19 @@ sub parse_overrides_io
 		next if $pkg eq ';'; # allow multiple semi-colons
 		my $action = shift @tokens or die "Unexpected end of input\n";
 		my $key    = shift @tokens or die "Unexpected end of input\n";
-		my @values;
-		while (@tokens) {
-			my $t = shift @tokens;
-			last if $t eq ';';
-			push @values, $t;
-		}
 
 		if ($action =~ m/^(skip|run)$/ and $key eq 'tests') {
 			$over{$pkg}{run_tests} = ($action eq 'run' ? 1 : 0);
 
 		} elsif ($action =~ m/^(skip|add)$/) {
+			my @values;
+			while (@tokens) {
+				my $t = shift @tokens;
+				last if $t eq ';';
+				push @values, $t;
+			}
 			@values or die "Unexpected end of input\n";
+
 			$key =~ m/^(build_requires|requires|provides|files)$/
 				or die "Unrecognized key '$key'\n(you want 'requires', 'build_requires', 'provides' or 'files')\n";
 
@@ -551,6 +539,18 @@ sub parse_overrides_io
 		} elsif ($action eq 'prefer') {
 			$over{$pkg}{$action} = $key;
 
+		} elsif ($action =~ m/^(pre|post)-(prep|check|build|install|clean)$/) {
+			$key eq '{' or die "Unexpected token '$key', expecting block delimiter '{'\n";
+			my @block;
+			while (@tokens) {
+				my $t = shift @tokens;
+				last if $t eq '}';
+				push @block, $t;
+			}
+			# NOTE: this makes non-semicolon bash style not work...
+			#       since the newlines are effectively removed.
+			$over{$pkg}{$action} = join ' ', @block;
+
 		} else {
 			die "Unrecognized action '$action'\n(you want 'skip', 'add' or 'prefer')\n";
 		}
@@ -558,77 +558,73 @@ sub parse_overrides_io
 	return \%over;
 }
 
-sub override_skip_files
+sub overrides
 {
-	my ($dist, $overrides) = @_;
-	my @l;
-	for my $top ('*', $dist) {
-		next unless exists $overrides->{$top}{skip}{files};
+	my ($rel, $overrides) = @_;
+	my %o = ();
 
-		for my $skip (@{ $overrides->{$top}{skip}{files} }) {
-			if ($skip =~ m{^/(.*)/$}) {
-				push @l, "find \$RPM_BUILD_ROOT -regextype posix-extended -regex '.*$1.*' -exec rm -f {} \\;";
-			} else {
-				push @l, "find \$RPM_BUILD_ROOT -path $skip -exec rm -f {} \\;";
+	my $combined = {
+		prefer    => 'Makefile.PL',
+		run_tests => $OPTIONS{tests},
+	};
+	for my $top ($rel->{distribution}, '*') {
+		for my $action (qw/add skip/) {
+			for my $type (qw/requires build_requires provides files/) {
+				$combined->{$action}{$type} ||= [];
+				push @{$combined->{$action}{$type}}, @{$overrides->{$top}{$action}{$type}}
+					if exists $overrides->{$top}{$action}{$type};
 			}
 		}
-	}
-	join("\n", @l);
-}
-
-sub override_skips
-{
-	my ($dist, $type, $overrides) = @_;
-	my @l;
-	for my $top ('*', $dist) {
-		next unless exists $overrides->{$top}{skip}{$type};
-
-		for my $skip (@{ $overrides->{$top}{skip}{$type} }) {
-			if ($skip =~ m{^/.*/$}) {
-				push @l, "  sed -e '${skip}d' |\\";
-			} else {
-				push @l, "  sed -e '/^$skip\$/d' |\\";
-			}
+		for my $phase (glob '{pre,post}-{prep,check,build,install,clean}') {
+			$combined->{$phase} ||= [];
+			next unless exists $overrides->{$top}{$phase};
+			push @{$combined->{$phase}}, $overrides->{$top}{$phase};
 		}
-	}
-	join("\n", @l);
-}
+		for my $single (qw/prefer run_tests/) {
+			next unless exists $overrides->{$top}{$single};
+			$combined->{$single} = $overrides->{$top}{$single};
+		}
+	};
 
-sub override_adds
-{
-	my ($dist, $type, $overrides) = @_;
-	my @l;
-	my $tag = "# unknown type '$type': ";
-	if ($type eq 'requires')       { $tag = 'Requires: ' }
-	if ($type eq 'build_requires') { $tag = 'BuildRequires: ' }
-	if ($type eq 'provides')       { $tag = 'Provides: ' }
+	$o{OVERRIDE_ADD_REQUIRES} =
+		join "\n", map { "Requires:      $_" } @{ $combined->{add}{requires} };
+	$o{OVERRIDE_ADD_BUILDREQUIRES} =
+		join "\n", map { "BuildRequires: $_" } @{ $combined->{add}{build_requires } };
+	$o{OVERRIDE_ADD_PROVIDES} =
+		join "\n", map { "Provides:      $_" } @{ $combined->{add}{provides } };
 
-	for my $top ('*', $dist) {
-		next unless exists $overrides->{$top}{add}{$type};
+	$o{OVERRIDE_SKIP_REQUIRES} =
+		join "\n", map { "  sed -e '". (m{^/.*/$} ? $_ : "/^$_\$/") . "d' |\\" }
+			@{ $combined->{skip}{requires} };
+	$o{OVERRIDE_SKIP_PROVIDES} =
+		join "\n", map { "  sed -e '". (m{^/.*/$} ? $_ : "/^$_\$/") . "d' |\\" }
+			@{ $combined->{skip}{provides} };
+	$o{OVERRIDE_SKIP_FILES} =
+		join "\n", map { 'find $RPM_BUILD_ROOT '.
+				( m{^/(.*)/$}
+				? "-regextype posix-extended -regex '.*$1.*'"
+				: "-path '$1'" ). ' -exec rm -f {}';
+			} @{ $combined->{skip}{files} };
 
-		push @l, "$tag$_\n" for @{ $overrides->{$top}{add}{$type} };
-	}
-	join('', @l);
-}
+	$o{PREFER}    = $combined->{prefer};
+	$o{RUN_TESTS} = $combined->{run_tests};
 
-sub override_prefer
-{
-	my ($dist, $overrides) = @_;
-	for my $top (reverse '*', $dist) {
-		return $overrides->{$top}{prefer}
-			if exists $overrides->{$top}{prefer};
-	}
-	return 'Makefile.PL';
-}
+	$o{OVERRIDE_PRE_PREP}     = join "\n", @{ $combined->{'pre-prep'}     };
+	$o{OVERRIDE_POST_PREP}    = join "\n", @{ $combined->{'post-prep'}    };
 
-sub override_tests
-{
-	my ($dist, $default, $overrides) = @_;
-	for my $top (reverse '*', $dist) {
-		return $overrides->{$top}{run_tests}
-			if exists $overrides->{$top}{run_tests};
-	}
-	return $default;
+	$o{OVERRIDE_PRE_CHECK}    = join "\n", @{ $combined->{'pre-check'}    };
+	$o{OVERRIDE_POST_CHECK}   = join "\n", @{ $combined->{'post-check'}   };
+
+	$o{OVERRIDE_PRE_BUILD}    = join "\n", @{ $combined->{'pre-build'}    };
+	$o{OVERRIDE_POST_BUILD}   = join "\n", @{ $combined->{'post-build'}   };
+
+	$o{OVERRIDE_PRE_INSTALL}  = join "\n", @{ $combined->{'pre-install'}  };
+	$o{OVERRIDE_POST_INSTALL} = join "\n", @{ $combined->{'post-install'} };
+
+	$o{OVERRIDE_PRE_CLEAN}    = join "\n", @{ $combined->{'pre-clean'}    };
+	$o{OVERRIDE_POST_CLEAN}   = join "\n", @{ $combined->{'post-clean'}   };
+
+	%o;
 }
 
 # }}}
@@ -896,6 +892,7 @@ if (!@ARGV) {
 __DATA__
 # generated by cpanimal
 %define __cpanimal_filelist %{_tmppath}/%{name}-%{version}-filelist
+%define __cpanimal_run_tests {{RUN_TESTS}}
 
 Name:           {{RPMPREFIX}}{{DISTNAME}}
 Obsoletes:      {{RPMPREFIX}}{{DISTNAME}}
@@ -922,6 +919,7 @@ Source0:        {{URL}}
 ##########################################################
 %prep
 %setup -q -n {{ARCHIVE_ROOT}}
+{{OVERRIDE_PRE_PREP}}
 
 %define __perl_provides %{_builddir}/patched-perl-provides
 cat > %{__perl_provides} <<'END_PATCHED'
@@ -961,9 +959,12 @@ chmod +x %{__new_perl_requires}
 %define __perl_requires %{__new_perl_requires}
 %define __find_requires %{__new_perl_requires}
 
+{{OVERRIDE_POST_PREP}}
+
 
 ##########################################################
 %build
+{{OVERRIDE_PRE_BUILD}}
 if [[ "x{{PREFER}}" == "xMakefile.PL" ]]; then
   if [[ -f Makefile.PL ]]; then
     CFLAGS="$RPM_OPT_FLAGS" \
@@ -1005,10 +1006,12 @@ else
   exit 1
 fi
 
+{{OVERRIDE_POST_BUILD}}
+
 
 ##########################################################
 %check
-%define __cpanimal_run_tests {{RUN_TESTS}}
+{{OVERRIDE_PRE_CHECK}}
 %if %{__cpanimal_run_tests}
 if [[ "x{{PREFER}}" == "xMakefile.PL" ]]; then
   if [[ -f Makefile.PL ]]; then
@@ -1040,14 +1043,22 @@ else
 fi
 %endif
 
+{{OVERRIDE_POST_CHECK}}
+
 
 ##########################################################
 %clean
+{{OVERRIDE_PRE_CLEAN}}
+
 rm -rf $RPM_BUILD_ROOT
+
+{{OVERRIDE_POST_CLEAN}}
 
 
 ##########################################################
 %install
+{{OVERRIDE_PRE_INSTALL}}
+
 rm -rf $RPM_BUILD_ROOT
 export PERL5LIB=$(perl -e "print join(':', map { '$RPM_BUILD_ROOT'.\$_ } @INC);")
 
@@ -1092,6 +1103,9 @@ if test ! -s %{__cpanimal_filelist}; then
   echo "Error: No files found to package!!"
   exit 1
 fi
+
+{{OVERRIDE_POST_INSTALL}}
+
 
 %files -f %{__cpanimal_filelist}
 %defattr(-,root,root)
