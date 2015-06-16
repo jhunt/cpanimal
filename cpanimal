@@ -831,7 +831,6 @@ sub build
 			dump_log;
 			die "$name Failed.\n";
 		}
-		run qq|ls -lh $tokens{RPMFILE}|;
 	}
 
 	step "building runtime / installation dependencies";
