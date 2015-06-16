@@ -157,6 +157,11 @@ sub rcfiles
 }
 rcfiles("$ENV{HOME}/.cpanimalrc", "/etc/cpanimal/cpanimalrc");
 $OPTIONS{root} =~ s!^~/!$ENV{HOME}/!;
+for (qw/tests strict/) {
+	next unless defined $OPTIONS{$_};
+	$OPTIONS{$_} = 1 if $OPTIONS{$_} =~ m/^ye/i; # yes, yeah, yessir...
+	$OPTIONS{$_} = 0 if $OPTIONS{$_} =~ m/^no/i; # no, nope, not!, no way josé...
+}
 GetOptions(\%OPTIONS, qw/
 	help|h|?
 	debug|D
@@ -165,7 +170,28 @@ GetOptions(\%OPTIONS, qw/
 	root=s
 	tests!
 	overrides=s
+	strict!
 /) or exit usage();
+if ($OPTIONS{strict}) {
+	my $n = 0;
+	unless ($ENV{PACKAGER_NAME}) {
+		print STDERR "\$PACKAGER_NAME environment variable is not set.\n";
+		$n++;
+	}
+	unless ($ENV{PACKAGER_EMAIL}) {
+		print STDERR "\$PACKAGER_EMAIL environment variable is not set.\n";
+		$n++;
+	}
+	unless ($ENV{HOME}) {
+		print STDERR "\$HOME environment variable is not set.\n";
+		$n++;
+	}
+
+	if ($n) {
+		print STDERR "\nstrict mode failures detected!!\nPlease fix and try again.\n";
+		exit 2;
+	}
+}
 
 sub read_DATA
 {
