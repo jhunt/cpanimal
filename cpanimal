@@ -1049,6 +1049,7 @@ rm -rf $RPM_BUILD_ROOT
 ##########################################################
 %install
 rm -rf $RPM_BUILD_ROOT
+export PERL5LIB=$(perl -e "print join(':', map { '$RPM_BUILD_ROOT'.\$_ } @INC);")
 
 if [[ "x{{PREFER}}" == "xMakefile.PL" ]]; then
   if [[ -f Makefile.PL ]]; then
