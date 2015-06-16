@@ -387,7 +387,6 @@ sub specfile
 	my %tokens = (
 		VERSION        => $version,
 		DISTNAME       => $rel->{distribution},
-		SOURCE         => $relname.'.tar.gz',
 		RPMPREFIX      => $PREFIX,
 		RPMFILE        => $PREFIX.$relname."-1.$arch.rpm",
 		SUMMARY        => $rel->{abstract} || "Perl $rel->{distribution}, you know, from CPAN??",
@@ -418,7 +417,6 @@ sub specfile
 		OVERRIDE_SKIP_PROVIDES => override_skips($rel->{distribution},
 			'provides', $overrides),
 	);
-	$tokens{URL} =~ s/$tokens{VERSION}\.tar\.gz$/%{version}.tar.gz/g;
 	my $x = "$SPEC";
 	$x =~ s/\{\{$_\}\}/$tokens{$_}/eg for keys %tokens;
 	print $spec $x;
