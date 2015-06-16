@@ -24,13 +24,13 @@ Embed a Perl interpreter in the Apache/2.x HTTP server
 cat > %{__new_perl_provides} <<END_PROVIDES
 #!/bin/sh
 # drop bad 'Provides' symbols
-%{__perl_provides} $* | sed -e 's/\s+$//'    |\
-  sed -e '/^perl(Win32)$/d'                  |\
-  sed -e '/^perl(Win32::.*)$/d'              |\
-  sed -e '/^perl(Mac)$/d'                    |\
-  sed -e '/^perl(Mac::.*)$/d'                |\
-  sed -e '/^perl(warnings)$/d'               |\
-  sed -e '/^perl(HTTP::Request::Common)$/d'  |\
+%{__perl_provides} $* | sed -e 's/\s+$//'   |\
+  sed -e '/^perl(Win32)/d'                  |\
+  sed -e '/^perl(Win32::.*)/d'              |\
+  sed -e '/^perl(Mac)/d'                    |\
+  sed -e '/^perl(Mac::.*)/d'                |\
+  sed -e '/^perl(warnings)/d'               |\
+  sed -e '/^perl(HTTP::Request::Common)/d'  |\
   cat
 END_PROVIDES
 chmod +x %{__new_perl_provides}
@@ -41,16 +41,16 @@ cat > %{__new_perl_requires} <<END_REQUIRES
 #!/bin/sh
 # drop bad 'Requires' symbols
 %{__perl_requires} $* | sed -e 's/\s+$//'    |\
-  sed -e '/^perl(Win32)$/d'                  |\
-  sed -e '/^perl(Win32::.*)$/d'              |\
-  sed -e '/^perl(Mac)$/d'                    |\
-  sed -e '/^perl(Mac::.*)$/d'                |\
-  sed -e '/^perl(Apache2::FunctionTable)$/d' |\
-  sed -e '/^perl(Apache2::StructureTable)$/d'|\
-  sed -e '/^perl(Apache::Test.*)$/d'         |\
-  sed -e '/^perl(BSD::Resource)$/d'          |\
-  sed -e '/^perl(Data::Flow)$/d'             |\
-  sed -e '/^perl(Module::Build)$/d'          |\
+  sed -e '/^perl(Win32)/d'                   |\
+  sed -e '/^perl(Win32::.*)/d'               |\
+  sed -e '/^perl(Mac)/d'                     |\
+  sed -e '/^perl(Mac::.*)/d'                 |\
+  sed -e '/^perl(Apache2::FunctionTable)/d'  |\
+  sed -e '/^perl(Apache2::StructureTable)/d' |\
+  sed -e '/^perl(Apache::Test.*)/d'          |\
+  sed -e '/^perl(BSD::Resource)/d'           |\
+  sed -e '/^perl(Data::Flow)/d'              |\
+  sed -e '/^perl(Module::Build)/d'           |\
   cat
 END_REQUIRES
 chmod +x %{__new_perl_requires}
