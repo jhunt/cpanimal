@@ -661,7 +661,7 @@ sub source
 	step "downloading $url";
 	run qq(curl $url > $OPTIONS{root}/SOURCES/$file);
 	print "\n";
-	$? == 0 or die "Failed.\n";
+	$? == 0 or die "$name Failed.\n";
 }
 
 sub info
@@ -736,7 +736,7 @@ sub arch
 		step "downloading $url";
 		run qq(curl $url > $OPTIONS{root}/SOURCES/$file);
 		print "\n";
-		$? == 0 or die "Failed.\n";
+		$? == 0 or die "$name Failed.\n";
 	}
 
 	my $arch = module_arch("$OPTIONS{root}/SOURCES/$file");
@@ -784,14 +784,16 @@ sub build
 	my $specfile = "$OPTIONS{root}/SPECS/$dist.spec";
 	my %tokens = specfile($specfile, $rel, $requires, $build_requires);
 	step "wrote spec file for $name to $specfile";
-	my $arch = module_arch("$OPTIONS{root}/SOURCES/$tokens{SOURCE}");
+
+	my $tarball = $tokens{URL}; $tarball =~ s!.*/!!;
+	my $arch = module_arch("$OPTIONS{root}/SOURCES/$tarball");
 
 	step "building RPM package";
 	runlog qq(rpmbuild -ba -D "_topdir $OPTIONS{root}" $specfile </dev/null);
 	if ($? != 0) {
 		if (!check_log(qw/perl\(.*?\) .*is needed by/)) {
 			dump_log;
-			die "Failed.\n";
+			die "$name Failed.\n";
 		}
 		# check the log for perl(...) build deps
 
@@ -803,7 +805,7 @@ sub build
 		runlog qq(rpmbuild -ba -D "_topdir $OPTIONS{root}" $specfile </dev/null);
 		if ($? != 0) {
 			dump_log;
-			die "Failed.\n";
+			die "$name Failed.\n";
 		}
 		run qq|ls -lh $tokens{RPMFILE}|;
 	}
@@ -825,7 +827,7 @@ sub build
 			runlog qq($SUDO rpm -U RPMS/$arch/$tokens{RPMFILE});
 			if ($? != 0) {
 				dump_log;
-				die "Failed\n";
+				die "$name Failed\n";
 			}
 		} else {
 			print "... looks like $name is already installed?\n";
