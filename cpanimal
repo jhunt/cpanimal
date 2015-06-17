@@ -637,9 +637,9 @@ sub overrides
 	$o{OVERRIDE_ADD_REQUIRES} =
 		join "\n", map { "Requires:      $_" } @{ $combined->{add}{requires} };
 	$o{OVERRIDE_ADD_BUILDREQUIRES} =
-		join "\n", map { "BuildRequires: $_" } @{ $combined->{add}{build_requires } };
+		join "\n", map { "BuildRequires: $_" } @{ $combined->{add}{build_requires} };
 	$o{OVERRIDE_ADD_PROVIDES} =
-		join "\n", map { "Provides:      $_" } @{ $combined->{add}{provides } };
+		join "\n", map { "Provides:      $_" } @{ $combined->{add}{provides} };
 
 	$o{OVERRIDE_SKIP_REQUIRES} =
 		join "\n", map { "  sed -e '". (m{^/.*/$} ? $_ : "/^$_\$/") . "d' |\\" }
