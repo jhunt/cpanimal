@@ -146,7 +146,7 @@ sub rcfiles
 			chomp;
 			s/\s*#.*//;
 			next unless m/^(\S+)\s+(.*)/;
-			if (exists $OPTIONS{$1}) {
+			if (exists $OPTIONS{$1} or $1 eq 'packager') {
 				$OPTIONS{$1} = $2;
 				next;
 			}
@@ -171,15 +171,29 @@ GetOptions(\%OPTIONS, qw/
 	tests!
 	overrides=s
 	strict!
+
+	packager=s
+	packager-name=s
+	packager-email=s
 /) or exit usage();
+# Process --packager* options
+$ENV{PACKAGER_NAME}  = $OPTIONS{'packager-name'}  if $OPTIONS{'packager-name'};
+$ENV{PACKAGER_EMAIL} = $OPTIONS{'packager-email'} if $OPTIONS{'packager-email'};
+if ($OPTIONS{packager}) {
+	$ENV{PACKAGER_NAME} = $OPTIONS{packager};
+	if ($OPTIONS{packager} =~ m/^\s*(.+)\s+<\s*(.+)\s*>\s*$/) {
+		$ENV{PACKAGER_NAME}  = $1;
+		$ENV{PACKAGER_EMAIL} = $2;
+	}
+}
 if ($OPTIONS{strict}) {
 	my $n = 0;
 	unless ($ENV{PACKAGER_NAME}) {
-		print STDERR "\$PACKAGER_NAME environment variable is not set.\n";
+		print STDERR "Packager name is not set.\n";
 		$n++;
 	}
 	unless ($ENV{PACKAGER_EMAIL}) {
-		print STDERR "\$PACKAGER_EMAIL environment variable is not set.\n";
+		print STDERR "Packager email is not set.\n";
 		$n++;
 	}
 	unless ($ENV{HOME}) {
@@ -875,7 +889,9 @@ if (!@ARGV) {
 	exit usage();
 
 } elsif ($ARGV[0] eq 'config') {
-	printf "%10s: %s\n", $_, $OPTIONS{$_} for sort keys %OPTIONS;
+	printf "%10s: %s\n", $_, $OPTIONS{$_} for
+		grep { defined $OPTIONS{$_} }
+		sort keys %OPTIONS;
 
 } elsif ($ARGV[0] eq 'spec') {
 	shift @ARGV;
