@@ -584,7 +584,7 @@ sub parse_overrides_io
 			$over{$pkg}{$action}{$key} ||= [];
 			push @{ $over{$pkg}{$action}{$key} }, @values;
 
-		} elsif ($action eq 'prefer') {
+		} elsif ($action =~ m/^(prefer|epoch)$/) {
 			$over{$pkg}{$action} = $key;
 
 		} elsif ($action =~ m/^(pre|post)-(prep|check|build|install|clean)$/) {
@@ -628,11 +628,13 @@ sub overrides
 			next unless exists $overrides->{$top}{$phase};
 			push @{$combined->{$phase}}, $overrides->{$top}{$phase};
 		}
-		for my $single (qw/prefer run_tests/) {
+		for my $single (qw/prefer run_tests epoch/) {
 			next unless exists $overrides->{$top}{$single};
 			$combined->{$single} = $overrides->{$top}{$single};
 		}
 	};
+
+	$o{EPOCH} = $combined->{epoch} || 0;
 
 	$o{OVERRIDE_ADD_REQUIRES} =
 		join "\n", map { "Requires:      $_" } @{ $combined->{add}{requires} };
@@ -948,6 +950,7 @@ __DATA__
 Name:           {{RPMPREFIX}}{{DISTNAME}}
 Obsoletes:      {{RPMPREFIX}}{{DISTNAME}}
 Provides:       {{RPMPREFIX}}{{DISTNAME}}
+Epoch:          {{EPOCH}}
 Version:        {{VERSION}}
 Release:        1%{?_dist}
 Summary:        {{SUMMARY}}
