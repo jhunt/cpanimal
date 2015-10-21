@@ -609,6 +609,7 @@ sub parse_overrides_io
 sub overrides
 {
 	my ($rel, $overrides) = @_;
+	$overrides = ref $overrides eq 'HASH' ? $overrides : {};
 	my %o = ();
 
 	my $combined = {
