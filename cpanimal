@@ -547,6 +547,7 @@ sub parse_overrides_file
 sub parse_overrides_io
 {
 	my ($io) = @_;
+	local $_;
 	my @lines;
 	while (<$io>) {
 		chomp;
